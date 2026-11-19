@@ -148,6 +148,17 @@ class CheckTest(unittest.TestCase):
         with mock.patch.object(install.shutil, "which", return_value=None):
             self.assertEqual(install.check_client("cursor", info, "uvx"), 1)
 
+    def test_list_form_command_passes(self):
+        # OpenCode stores the whole argv in `command`, not a string.
+        info = {"mode": "json", "path": self.path,
+                "section": ["mcp", "servers"]}
+        install.write_config(self.path, ("mcp", "servers"), "agg-search",
+                             {"type": "local",
+                              "command": ["uvx", "--from", "agg-search"],
+                              "environment": {}})
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client("opencode", info, "uvx"), 0)
+
 
 class CliTest(unittest.TestCase):
     def test_env_parsing_reaches_entry(self):

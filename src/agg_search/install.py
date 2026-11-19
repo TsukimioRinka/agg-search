@@ -212,6 +212,8 @@ def check_client(name, info, runtime):
                                     % (SERVER, ".".join(info["section"])))
                 else:
                     command = entry.get("command")
+                    if isinstance(command, (list, tuple)):
+                        command = command[0] if command else None
                     if not command:
                         problems.append("entry has no command")
                     elif not (os.path.isabs(command)
