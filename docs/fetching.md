@@ -69,23 +69,43 @@ still fails that test the JSON carries `blocked: true` and the process exits 3.
 - Chromium needs `--no-sandbox` inside this container (rootfs read-only +
   non-root + `--cap-drop=ALL`): acceptable, blast radius is one disposable run.
 
-## SSRF guard (host side)
+## SSRF guard
 
-`crawl-fetch` pre-flights every URL before either rung: only `http`/`https`,
-no `user:pass@` userinfo, and every resolved address must be public (private,
-loopback, link-local, multicast, reserved and `169.254.169.254` are rejected).
-`--allow-private` lifts the address/name rules for local dev servers and host
-proxies; the scheme, credential and `metadata.google.internal` rules stay.
+Three layers, all enforced before content reaches the caller:
 
-Two deliberate limits, worth knowing before exposing this to untrusted input:
+1. **Host pre-flight** (`check_url`): only `http`/`https`, no `user:pass@`
+   userinfo, and every resolved address must be public. Private, loopback,
+   link-local, multicast and reserved ranges are rejected; **cloud metadata is
+   blocked unconditionally** (`169.254.169.254`, `fd00:ec2::254`,
+   `metadata.google.internal`) — `--allow-private` does not lift it.
+2. **No silent redirects** (host side): every outbound request uses an opener
+   whose redirect handler refuses 3xx, so a 302 can neither carry an API key
+   to another origin nor turn into an unvalidated second hop.
+3. **Container re-check**: scrapling follows redirects inside the container,
+   so after the response the final URL is resolved again and rejected if it
+   is private/metadata (`fetch_container.final_target_allowed`). The content
+   is dropped, `blocked: true` is reported.
 
-- the check resolves DNS once, then the fetch resolves again — a hostile
-  resolver can flip the answer between the two (DNS rebinding). The container
-  additionally has no route to the host's loopback unless `--host-net` is set.
+Opt-ins, both **server-side** (never a per-call MCP argument):
+
+- `--allow-private` / `AGG_SEARCH_ALLOW_PRIVATE=1` — local dev servers and
+  host proxies. Metadata stays blocked.
+- `--allow-cidrs` / `AGG_SEARCH_ALLOW_CIDRS` — specific ranges. TUN proxies
+  that hand out fake-IPs (clash: `198.18.0.0/15`) make every public host look
+  private; allow that range explicitly. `agg-search --show-config` does not
+  print it.
+
+Residual limits worth knowing:
+
+- DNS is resolved once at the guard and again at fetch time; a hostile
+  resolver can flip the answer between the two (rebinding). Pinning the
+  resolved IP would require a custom transport and is not implemented.
 - the DeepSeek Fetch rung runs server-side, so the guard's address rules do
   not apply to *its* egress; it only sees approved http(s) URLs.
+- the container has no route to host loopback unless `--host-net` is set.
 
-Response bodies on the DeepSeek rung are capped at 4 MiB.
+Response bodies are capped at 4 MiB on the DeepSeek rung and 4 MiB per engine
+response on the search path.
 
 ## crawl-env cheatsheet
 

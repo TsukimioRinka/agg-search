@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.4.1] - 2026-11-19
+
+Security release from an independent audit.
+
+### Security
+
+- Fetch SSRF: cloud metadata addresses (`169.254.169.254`, `fd00:ec2::254`,
+  `metadata.google.internal`) are blocked unconditionally, including with
+  `--allow-private`.
+- Fetch redirects: host-side requests refuse 3xx instead of letting `urllib`
+  forward API keys to another origin; the container re-resolves the final URL
+  and drops the body when it is private or metadata.
+- `allow_private` / `allow_cidrs` are server-side environment policy
+  (`AGG_SEARCH_ALLOW_PRIVATE`, `AGG_SEARCH_ALLOW_CIDRS`), no longer writable
+  through MCP tool arguments, so a prompt-injected model cannot widen the
+  guard. The CIDR option exists for TUN proxies whose fake-IPs
+  (`198.18.0.0/15`) would otherwise look private.
+- Search engine responses are capped at 4 MiB and 3xx are refused; markdown
+  titles are escaped and C0/C1 control characters stripped before output.
+- Fetch `title`/`markdown` now pass through the invisible-character
+  sanitizer, and the MCP `text_limit` maximum is 40000 characters.
+- HTTP transport: duplicate `Content-Length` and `Content-Length` +
+  `Transfer-Encoding` are rejected (request smuggling), connections time out
+  after 30s and are capped at 64.
+- MCP: at most 16 tool calls may be in flight (`-32603 server busy`
+  beyond that), and cancellation over HTTP now kills the subprocess.
+- `agg-search-install` keeps at most five `.bak-*` copies of a rewritten
+  config, so secrets in `env` are not copied indefinitely.
+- CI actions are pinned to commit SHAs; the tests workflow declares
+  `contents: read`.
+
 ## [0.4.0] - 2026-11-19
 
 ### Added

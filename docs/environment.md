@@ -27,6 +27,8 @@
 | `AGG_SEARCH_CONFIG_DIR` | 覆盖调优权重目录（默认 `~/.config/agg-search`，`weights.json` 在此） | 否 |
 | `AGG_SEARCH_PROFILE` | 默认领域画像：`general` / `academic` / `code` / `news`（显式 `--profile` 优先） | 否 |
 | `AGG_SEARCH_NO_LEARN` | `1/true/yes` 关闭反馈读写（等价 `--no-learn`） | 否 |
+| `AGG_SEARCH_ALLOW_PRIVATE` | `1/true/yes` 让抓取允许私网/回环目标（服务端策略；MCP 调用方无法逐次开启；云元数据地址始终拒绝） | 否 |
+| `AGG_SEARCH_ALLOW_CIDRS` | 逗号分隔的允许网段（TUN 代理的 `198.18.0.0/15` fake-IP 需要它；元数据地址不受影响） | 否 |
 | `AGG_SEARCH_ENGINES` | 默认引擎列表（逗号分隔；显式 `--engines` 优先） | 否 |
 | `AGG_SEARCH_TOP_N` | 默认返回条数 | 否 |
 | `AGG_SEARCH_PER_ENGINE` | 每引擎召回条数 | 否 |

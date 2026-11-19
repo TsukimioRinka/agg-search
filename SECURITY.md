@@ -14,11 +14,16 @@ and what an attacker gains. You will get an acknowledgement within a few days.
 ## Scope
 
 - The fetch path accepts user-supplied URLs. Reports about SSRF, redirect
-  handling and scheme handling are in scope.
+  handling and scheme handling are in scope. Current mitigations: metadata
+  IPs are blocked unconditionally, 3xx responses are refused on the host
+  side, and the container re-checks the final URL before returning content.
 - API keys are read from the environment and never logged or persisted. Any
   path that writes a key to disk or stdout is in scope.
 - The MCP server shells out to the CLI with the caller's arguments. Anything
   that allows argument injection beyond the documented flags is in scope.
+  `allow_private`/`allow_cidrs` are deliberately not tool arguments: they are
+  server-side environment policy, so a prompt-injected model cannot widen the
+  SSRF guard.
 
 ## Out of scope
 
