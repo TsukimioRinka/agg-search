@@ -78,6 +78,23 @@ uv pip install -e .
 PYTHONPATH=src python3 -m agg_search.search "query"
 ```
 
+## 下载入口（Agent × 领域）
+
+| 入口 | 说明 |
+|---|---|
+| [docs/catalog.md](docs/catalog.md) | 13 家 Agent × 4 个领域画像的完整入口表 |
+| [catalog.json](catalog.json) | 同一份数据的机器可读版本（给脚本/目录站用） |
+| Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PROFILE` |
+| Claude Code / Codex | 一条 `mcp add` 命令，含 `--env` |
+| 其他客户端 | `agg-search-install -c <client> --profile <profile> --write` |
+
+非 `general` 画像注册为独立的 server 名（`agg-search-academic`、`agg-search-code`、`agg-search-news`），可以和默认的 `agg-search` 并存。
+
+```bash
+agg-search-install --catalog --markdown   # 重新生成 docs/catalog.md
+agg-search-install --catalog              # 打印 JSON
+```
+
 ## 使用
 
 ```bash

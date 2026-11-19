@@ -9,11 +9,18 @@ never touches disk, `--write` backs up and merges one server entry.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import shutil
 import sys
 import time
+import urllib.parse
+
+try:  # package import (installed, `python -m agg_search.install`)
+    from . import profiles
+except ImportError:  # pragma: no cover - direct script execution
+    import profiles  # type: ignore[no-redef]
 
 SERVER = "agg-search"
 DEFAULT_ARGS = ["--from", "agg-search", "agg-search-mcp"]
@@ -40,8 +47,9 @@ CLIENTS = {
     "claude-code": {
         "mode": "command",
         "doc": "claude mcp add writes the user/project config itself",
-        "command": ["claude", "mcp", "add", "--scope", "{scope}", SERVER,
+        "command": ["claude", "mcp", "add", "--scope", "{scope}", "{name}",
                     "--", "{command...}"],
+        "env_flag": "--env",
     },
     "claude-desktop": {
         "mode": "json",
@@ -52,7 +60,8 @@ CLIENTS = {
     "codex": {
         "mode": "command",
         "doc": "TOML also works: [mcp_servers.agg-search] in ~/.codex/config.toml",
-        "command": ["codex", "mcp", "add", SERVER, "--", "{command...}"],
+        "command": ["codex", "mcp", "add", "{name}", "--", "{command...}"],
+        "env_flag": "--env",
         "toml": "[mcp_servers.agg-search]\ncommand = \"uvx\"\n"
                 "args = [\"--from\", \"agg-search\", \"agg-search-mcp\"]\n",
     },
@@ -101,8 +110,6 @@ CLIENTS = {
         "path": _path(".gemini", "settings.json"),
         "section": ("mcpServers",),
         "shape": "gemini",
-        "command": ["gemini", "mcp", "add", "--scope", "{scope}", SERVER,
-                    "{command...}"],
     },
     "antigravity": {
         "mode": "json",
@@ -116,7 +123,6 @@ CLIENTS = {
                  "project": "opencode.json"},
         "section": ("mcp", "servers"),
         "shape": "opencode",
-        "command": ["opencode", "mcp", "add", SERVER, "--", "{command...}"],
     },
     "generic": {
         "mode": "snippet",
@@ -246,18 +252,146 @@ def _resolve_path(spec, scope):
     return spec
 
 
-def _expand_command(template, argv, entry=None):
+def _expand_command(template, argv, entry=None, name=SERVER):
     out = []
     for part in template:
         if part == "{command...}":
             out.extend(argv)
         elif part == "{scope}":
             out.append("user")
+        elif part == "{name}":
+            out.append(name)
         elif part == "{json}":
             out.append(json.dumps(entry, ensure_ascii=False))
         else:
             out.append(part)
     return out
+
+
+def server_name(profile):
+    return SERVER if profile == "general" else "%s-%s" % (SERVER, profile)
+
+
+def entry_env(profile):
+    env = {}
+    if profile != "general":
+        env["AGG_SEARCH_PROFILE"] = profile
+    return env
+
+
+def cursor_deeplink(name, entry):
+    cfg = {key: entry[key] for key in ("command", "args", "env") if key in entry}
+    blob = base64.b64encode(
+        json.dumps(cfg, ensure_ascii=False).encode()).decode()
+    return ("https://cursor.com/en/install-mcp?name=%s&config=%s"
+            % (urllib.parse.quote(name), urllib.parse.quote(blob, safe="")))
+
+
+def vscode_deeplink(name, entry):
+    cfg = {"type": "stdio", "command": entry["command"],
+           "args": entry.get("args", []), "env": entry.get("env", {})}
+    blob = urllib.parse.quote(json.dumps(cfg, ensure_ascii=False), safe="")
+    return ("https://vscode.dev/redirect/mcp/install?name=%s&config=%s"
+            % (urllib.parse.quote(name), blob))
+
+
+def catalog(argv=None):
+    """Machine-readable matrix of every agent x every domain profile."""
+    argv = list(argv or (["uvx"] + DEFAULT_ARGS))
+    rows = []
+    for agent, spec in sorted(CLIENTS.items()):
+        entries = []
+        for profile in profiles.names():
+            env = entry_env(profile)
+            entry = payload(spec.get("shape", "mcpServers"), argv, env)
+            name = server_name(profile)
+            item = {"profile": profile, "name": name, "env": env,
+                    "entry": entry}
+            if spec.get("mode") == "command" and "command" in spec:
+                command = _expand_command(spec["command"], argv, entry, name)
+                flag = spec.get("env_flag")
+                if env and flag and "--" in command:
+                    at = command.index("--")
+                    pairs = []
+                    for key, value in env.items():
+                        pairs += [flag, "%s=%s" % (key, value)]
+                    command = command[:at] + pairs + command[at:]
+                    item["command"] = " ".join(command)
+                elif env:
+                    # this client takes env only through its config file
+                    item["command"] = ("agg-search-install -c %s --profile %s "
+                                       "--write" % (agent, profile))
+                else:
+                    item["command"] = " ".join(command)
+            if agent == "cursor":
+                item["deeplink"] = cursor_deeplink(name, entry)
+            elif agent == "vscode":
+                item["deeplink"] = vscode_deeplink(name, entry)
+            if spec.get("mode") == "json":
+                path = spec.get("path")
+                if callable(path):
+                    item["path"] = path()
+                elif isinstance(path, dict):
+                    item["path"] = path.get("user") or path.get("project")
+            entries.append(item)
+        rows.append({"id": agent, "mode": spec["mode"],
+                     "doc": spec.get("doc", ""), "entries": entries})
+    return {
+        "servers": {p: {"name": server_name(p),
+                        "env": entry_env(p)} for p in profiles.names()},
+        "agents": rows,
+    }
+
+
+def catalog_markdown(data=None):
+    data = data or catalog()
+    agents = {row["id"]: row for row in data["agents"]}
+    lines = [
+        "# 下载入口 — Agent × 领域",
+        "",
+        "同一个 stdio server，不同 Agent 的注册方式不同；不同领域用 `AGG_SEARCH_PROFILE` "
+        "把引擎组合与权重钉死。下表由 `agg-search-install --catalog --markdown` 生成，"
+        "机器可读版本见仓库根目录的 [`catalog.json`](../catalog.json)。",
+        "",
+        "| profile | 含义 |",
+        "|---|---|",
+    ]
+    for profile in profiles.names():
+        lines.append("| `%s` | %s |" % (profile,
+                                        profiles.PROFILES[profile]["description"]))
+    lines += ["", "## 按 Agent", "",
+              "| Agent | 类型 | 一行入口 |", "|---|---|---|"]
+    for agent, row in agents.items():
+        item = next(e for e in row["entries"] if e["profile"] == "general")
+        if item.get("deeplink"):
+            entry = "[\u2b07 安装](%s)" % item["deeplink"]
+        elif item.get("command"):
+            entry = "`%s`" % item["command"]
+        elif row["mode"] == "snippet":
+            entry = "`agg-search-install -c %s`" % agent
+        else:
+            entry = "`agg-search-install -c %s --write`" % agent
+        lines.append("| %s | %s | %s |"
+                     % (agent, row["mode"], entry))
+    lines += ["", "## 按领域", "",
+              "| profile | Cursor | VS Code | Claude Code | Codex | 其他客户端 |",
+              "|---|---|---|---|---|---|"]
+    for profile in profiles.names():
+        cursor = next(e for e in agents["cursor"]["entries"]
+                      if e["profile"] == profile)
+        vscode = next(e for e in agents["vscode"]["entries"]
+                      if e["profile"] == profile)
+        claude = next(e for e in agents["claude-code"]["entries"]
+                      if e["profile"] == profile)
+        codex = next(e for e in agents["codex"]["entries"]
+                     if e["profile"] == profile)
+        lines.append("| `%s` | [安装](%s) | [安装](%s) | `%s` | `%s` | "
+                     "`agg-search-install -c <client> --profile %s --write` |"
+                     % (profile, cursor["deeplink"], vscode["deeplink"],
+                        claude["command"], codex["command"], profile))
+    lines += ["", "完整路径与 JSON/YAML 片段见 [adapters.md](adapters.md)；"
+                  "领域画像与反馈回路见 [profiles.md](profiles.md)。"]
+    return "\n".join(lines) + "\n"
 
 
 def describe(name, argv, env, scope):
@@ -309,6 +443,10 @@ def main(argv=None):
                     help="comma-separated runtime arguments")
     ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                     help="environment entry for the client config (repeatable)")
+    ap.add_argument("--catalog", action="store_true",
+                    help="print the agent x domain catalog as JSON")
+    ap.add_argument("--markdown", action="store_true",
+                    help="with --catalog, print docs/catalog.md instead")
     ap.add_argument("--check", action="store_true",
                     help="verify the client config exists, parses, holds the "
                          "server entry and that the runtime binary resolves")
@@ -316,6 +454,12 @@ def main(argv=None):
                     help="pin this client to a domain profile "
                          "(sets AGG_SEARCH_PROFILE in its env)")
     a = ap.parse_args(argv)
+
+    if a.catalog:
+        data = catalog()
+        print(catalog_markdown(data) if a.markdown
+              else json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
 
     if a.list or not a.client:
         width = max(len(n) for n in CLIENTS)

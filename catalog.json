@@ -1,0 +1,1059 @@
+{
+  "servers": {
+    "academic": {
+      "name": "agg-search-academic",
+      "env": {
+        "AGG_SEARCH_PROFILE": "academic"
+      }
+    },
+    "code": {
+      "name": "agg-search-code",
+      "env": {
+        "AGG_SEARCH_PROFILE": "code"
+      }
+    },
+    "general": {
+      "name": "agg-search",
+      "env": {}
+    },
+    "news": {
+      "name": "agg-search-news",
+      "env": {
+        "AGG_SEARCH_PROFILE": "news"
+      }
+    }
+  },
+  "agents": [
+    {
+      "id": "antigravity",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "claude-code",
+      "mode": "command",
+      "doc": "claude mcp add writes the user/project config itself",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "command": "claude mcp add --scope user agg-search-academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "command": "claude mcp add --scope user agg-search-code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          },
+          "command": "claude mcp add --scope user agg-search -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "command": "claude mcp add --scope user agg-search-news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
+        }
+      ]
+    },
+    {
+      "id": "claude-desktop",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          },
+          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+        }
+      ]
+    },
+    {
+      "id": "cline",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            },
+            "disabled": false,
+            "autoApprove": []
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            },
+            "disabled": false,
+            "autoApprove": []
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {},
+            "disabled": false,
+            "autoApprove": []
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            },
+            "disabled": false,
+            "autoApprove": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "mode": "command",
+      "doc": "TOML also works: [mcp_servers.agg-search] in ~/.codex/config.toml",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "command": "codex mcp add agg-search-academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "command": "codex mcp add agg-search-code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          },
+          "command": "codex mcp add agg-search -- uvx --from agg-search agg-search-mcp"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "command": "codex mcp add agg-search-news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
+        }
+      ]
+    },
+    {
+      "id": "continue",
+      "mode": "snippet",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-academic&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiYWNhZGVtaWMifX0%3D",
+          "path": "/home/body/.cursor/mcp.json"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-code&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiY29kZSJ9fQ%3D%3D",
+          "path": "/home/body/.cursor/mcp.json"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          },
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52Ijoge319",
+          "path": "/home/body/.cursor/mcp.json"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-news&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAibmV3cyJ9fQ%3D%3D",
+          "path": "/home/body/.cursor/mcp.json"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            },
+            "timeout": 30000,
+            "trust": false
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            },
+            "timeout": 30000,
+            "trust": false
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {},
+            "timeout": 30000,
+            "trust": false
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            },
+            "timeout": 30000,
+            "trust": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "generic",
+      "mode": "snippet",
+      "doc": "any client that reads mcpServers",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "opencode",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "type": "local",
+            "command": [
+              "uvx",
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "environment": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "path": "/home/body/.config/opencode/opencode.json"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "type": "local",
+            "command": [
+              "uvx",
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "environment": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "path": "/home/body/.config/opencode/opencode.json"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "type": "local",
+            "command": [
+              "uvx",
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "environment": {}
+          },
+          "path": "/home/body/.config/opencode/opencode.json"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "type": "local",
+            "command": [
+              "uvx",
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "environment": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "path": "/home/body/.config/opencode/opencode.json"
+        }
+      ]
+    },
+    {
+      "id": "vscode",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-academic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22academic%22%7D%7D",
+          "path": ".vscode/mcp.json"
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-code&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22code%22%7D%7D",
+          "path": ".vscode/mcp.json"
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          },
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%7D%7D",
+          "path": ".vscode/mcp.json"
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "type": "stdio",
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-news&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22news%22%7D%7D",
+          "path": ".vscode/mcp.json"
+        }
+      ]
+    },
+    {
+      "id": "windsurf",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "zed",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          }
+        },
+        {
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          }
+        },
+        {
+          "profile": "general",
+          "name": "agg-search",
+          "env": {},
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {}
+          }
+        },
+        {
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
