@@ -231,6 +231,7 @@ python3 -m unittest discover -s tests -v
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
 | [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
 | [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的隔离实测与清理记录 |
+| [docs/handoff.md](docs/handoff.md) | 交接：本机路径、凭据位置、逐层验证与发版流程 |
 | [docs/fetching.md](docs/fetching.md) | 分层抓取的梯子与容器 |
 | [docs/reranking.md](docs/reranking.md) | RRF 与 Jina 精排、参数扫描 |
 | [docs/environment.md](docs/environment.md) | 环境变量与计费说明 |
