@@ -26,6 +26,8 @@ agg-search = "agg_search.search:main"
 crawl-fetch = "agg_search.fetch:main"
 agg-search-eval = "agg_search.eval:main"
 agg-search-mcp = "agg_search.mcp:main"
+agg-search-http = "agg_search.http_transport:main"
+agg-search-install = "agg_search.install:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
