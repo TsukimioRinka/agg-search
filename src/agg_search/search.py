@@ -4,7 +4,9 @@
 Engines: exa, brave, serper (Google SERP bridge), firecrawl, tavily,
 anysearch (MCP-over-HTTP), searxng (self-hosted), deepseek (official
 in-house engine, POST /v1/tools/search; results arrive pre-scored with
-rerank_score). Stdlib only, no dependencies. Any single engine may fail or
+rerank_score), plus three keyless domain sources: openalex (academic
+works), hn (Hacker News via Algolia) and stack (Stack Exchange).
+Stdlib only, no dependencies. Any single engine may fail or
 time out without blocking the rest; fusion degrades gracefully.
 
 Environment (keys also fall back to ~/.config/agent-env and
@@ -22,9 +24,11 @@ Environment (keys also fall back to ~/.config/agent-env and
 
 Config defaults may come from the environment instead of flags:
 AGG_SEARCH_ENGINES (comma list), AGG_SEARCH_TOP_N, AGG_SEARCH_PER_ENGINE,
-AGG_SEARCH_SNIPPET_CHARS, AGG_SEARCH_FAST and AGG_SEARCH_NO_JINA
-(1/true/yes). They apply only when the matching flag is omitted, and
-invalid values are ignored. `--show-config` prints the effective settings
+AGG_SEARCH_SNIPPET_CHARS, AGG_SEARCH_FAST, AGG_SEARCH_NO_JINA,
+AGG_SEARCH_PROFILE and AGG_SEARCH_NO_LEARN (1/true/yes). They apply only
+when the matching flag is omitted, and invalid values are ignored.
+`--profile` presets engines/weights/recency/snippets for a domain
+(academic, code, news); `--show-config` prints the effective settings
 as JSON (credentials as booleans, never key values) and exits before any
 network call; `--json` output carries per-engine latency and phase timings
 under engine_health.
@@ -33,6 +37,7 @@ import argparse
 import concurrent.futures as cf
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -41,6 +46,12 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+
+try:  # package import (installed, `python -m agg_search.search`)
+    from . import learn, profiles
+except ImportError:  # pragma: no cover - direct script execution
+    import learn  # type: ignore[no-redef]
+    import profiles  # type: ignore[no-redef]
 
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
@@ -166,7 +177,8 @@ def save_cooldown(state):
 
 def cache_key(query, engines, recency, per_engine, rrf_top, top_n, no_jina,
               expand, diversify, fast=False, budget_secs=30.0, min_sources=0,
-              include_domains=(), exclude_domains=(), snippet_chars=400):
+              include_domains=(), exclude_domains=(), snippet_chars=400,
+              extra=""):
     parts = [query, ",".join(sorted(engines)), recency or "",
              str(per_engine), str(rrf_top), str(top_n), str(bool(no_jina)),
              str(expand), str(bool(diversify)),
@@ -175,6 +187,7 @@ def cache_key(query, engines, recency, per_engine, rrf_top, top_n, no_jina,
              ",".join(sorted(parse_domains(exclude_domains))),
              str(clamp_snippet_chars(snippet_chars)),
              "%.1f" % ENGINE_TIMEOUT,
+             extra,
              getenv("JINA_RERANK_MODEL", JINA_MODELS[0]),
              getenv("SEARXNG_URL", "http://127.0.0.1:8080"),
              getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")]
@@ -575,6 +588,110 @@ def eng_deepseek(q, n, recency):
               [:400]) for r in rows[:n]], None)
 
 
+def _strip_tags(markup):
+    return re.sub(r"<[^>]+>", " ", markup or "")
+
+
+def _openalex_abstract(inverted):
+    """Rebuild the abstract from OpenAlex's inverted index (word -> positions)."""
+    if not isinstance(inverted, dict):
+        return ""
+    positions = []
+    for word, idxs in inverted.items():
+        for i in idxs or []:
+            positions.append((i, word))
+    positions.sort()
+    return " ".join(word for _, word in positions)
+
+
+def eng_openalex(q, n, recency):
+    """Academic works (keyless, polite pool; OPENALEX_API_KEY raises the cap)."""
+    params = {
+        "search": q,
+        "per-page": min(n, 25),
+        "select": "id,doi,title,publication_year,primary_location,"
+                  "abstract_inverted_index",
+    }
+    if recency:
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[recency]
+        since = (datetime.datetime.now(datetime.timezone.utc)
+                 - datetime.timedelta(days=days)).strftime("%Y-%m-%d")
+        params["filter"] = "from_publication_date:" + since
+    key = getenv("OPENALEX_API_KEY")
+    if key:
+        params["api_key"] = key
+    mailto = getenv("OPENALEX_MAILTO")
+    if mailto:
+        params["mailto"] = mailto
+    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "agg-search/1.0"})
+    with urllib.request.urlopen(req,
+                                timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
+        d = json.loads(r.read().decode())
+    out = []
+    for work in d.get("results", [])[:n]:
+        link = (work.get("doi")
+                or (work.get("primary_location") or {}).get("landing_page_url")
+                or work.get("id"))
+        if not link:
+            continue
+        abstract = _openalex_abstract(work.get("abstract_inverted_index"))
+        year = work.get("publication_year")
+        snippet = abstract or ("published %s" % year if year else "")
+        out.append((norm_url(link), clean_text(work.get("title") or ""),
+                    clean_text(snippet[:400])))
+    return out, None
+
+
+def eng_hn(q, n, recency):
+    """Hacker News stories via the Algolia API (keyless)."""
+    params = {"query": q, "hitsPerPage": min(n, 30), "tags": "story"}
+    if recency:
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[recency]
+        params["numericFilters"] = "created_at_i>%d" % int(
+            time.time() - days * 86400)
+    d = http_json("https://hn.algolia.com/api/v1/search?"
+                  + urllib.parse.urlencode(params))
+    out = []
+    for hit in d.get("hits", [])[:n]:
+        link = hit.get("url") or ("https://news.ycombinator.com/item?id=%s"
+                                  % hit.get("objectID"))
+        text = _strip_tags(hit.get("story_text") or "").strip()
+        meta = "%s points · %s comments" % (hit.get("points") or 0,
+                                            hit.get("num_comments") or 0)
+        snippet = text or meta
+        out.append((norm_url(link), clean_text(hit.get("title") or ""),
+                    clean_text(snippet[:400])))
+    return out, None
+
+
+def eng_stack(q, n, recency):
+    """Stack Exchange Q&A (keyless; STACKEXCHANGE_SITE picks the site)."""
+    params = {
+        "order": "desc",
+        "sort": "relevance",
+        "q": q,
+        "site": getenv("STACKEXCHANGE_SITE", "stackoverflow"),
+        "pagesize": min(n, 20),
+        "filter": "withbody",
+    }
+    if recency:
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[recency]
+        params["fromdate"] = int(time.time() - days * 86400)
+    key = getenv("STACKEXCHANGE_KEY")
+    if key:
+        params["key"] = key
+    d = http_json("https://api.stackexchange.com/2.3/search/advanced?"
+                  + urllib.parse.urlencode(params))
+    out = []
+    for item in d.get("items", [])[:n]:
+        body = re.sub(r"\s+", " ", _strip_tags(item.get("body") or "")).strip()
+        out.append((norm_url(item.get("link") or ""),
+                    clean_text(html.unescape(item.get("title") or "")),
+                    clean_text(body[:400])))
+    return out, None
+
+
 ENGINES = {
     # name: (fn(q, n, recency), rrf weight); index 1 is weight,
     # relied on by rrf_eval.py and main() — keep append-only.
@@ -586,6 +703,9 @@ ENGINES = {
     "tavily": (lambda q, n, r: eng_tavily(q, n, r), 1.0),
     "deepseek": (lambda q, n, r: eng_deepseek(q, n, r), 1.0),
     "searxng": (lambda q, n, r: eng_searxng(q, n, r), 0.5),
+    "openalex": (lambda q, n, r: eng_openalex(q, n, r), 1.0),
+    "hn": (lambda q, n, r: eng_hn(q, n, r), 1.0),
+    "stack": (lambda q, n, r: eng_stack(q, n, r), 1.0),
 }
 
 
@@ -898,40 +1018,55 @@ def apply_env_defaults(a):
     A flag counts as omitted only while it still equals its hardcoded
     argparse default (so --help keeps showing real defaults); an explicit
     flag always wins. Invalid env values are ignored silently — a bad
-    AGG_SEARCH_TOP_N must never crash a search or half-apply."""
+    AGG_SEARCH_TOP_N must never crash a search or half-apply.
+    Returns the set of attributes it changed, so a profile applied later
+    does not overwrite an environment choice."""
+    applied = set()
     if a.engines == DEFAULT_ENGINES:
         raw = os.environ.get("AGG_SEARCH_ENGINES")
         names = [e.strip() for e in (raw or "").split(",") if e.strip()]
         if names and all(e in ENGINES for e in names):
             a.engines = ",".join(names)
+            applied.add("engines")
     if a.top_n == DEFAULT_TOP_N:
         v = _env_int("AGG_SEARCH_TOP_N")
         if v is not None:
             a.top_n = v
+            applied.add("top_n")
     if a.per_engine == DEFAULT_PER_ENGINE:
         v = _env_int("AGG_SEARCH_PER_ENGINE")
         if v is not None:
             a.per_engine = v
+            applied.add("per_engine")
     if a.snippet_chars == DEFAULT_SNIPPET_CHARS:
         v = _env_int("AGG_SEARCH_SNIPPET_CHARS")
         if v is not None:
             a.snippet_chars = v
+            applied.add("snippet_chars")
     if a.fast is False and _env_flag("AGG_SEARCH_FAST"):
         a.fast = True
     if a.no_jina is False and _env_flag("AGG_SEARCH_NO_JINA"):
         a.no_jina = True
-    return a
+    return applied
 
 
-def show_config(a):
+def show_config(a, profile_name="general", profile=None, use_learn=True):
     """Effective settings for bug reports: credentials as booleans only.
 
     Every credential probe is `missing_credential(...) is None`; no key
     value is read into the payload, so this output is safe to paste."""
     req = [e.strip() for e in a.engines.split(",") if e.strip()]
     engines = [e for e in req if e in ENGINES] or list(ENGINES)
+    weights = profiles.weights(profile or {}, ENGINES)
+    learned = learn.load_multipliers(profile_name) if use_learn else {}
+    for engine, mult in learned.items():
+        weights[engine] = round(weights.get(engine, 1.0) * float(mult), 3)
     return {
+        "profile": profile_name,
         "engines": engines,
+        "weights": weights,
+        "learned_multipliers": learned,
+        "learn": use_learn,
         "top_n": a.top_n,
         "per_engine": a.per_engine,
         "rrf_top": a.rrf_top,
@@ -1015,12 +1150,36 @@ def main():
                     metavar="SECS",
                     help="per-engine HTTP timeout in seconds "
                          "(default: %(default)s)")
+    ap.add_argument("--profile", default=None, metavar="NAME",
+                    help="domain preset: %s (env AGG_SEARCH_PROFILE)"
+                         % ", ".join(profiles.names()))
+    ap.add_argument("--list-profiles", action="store_true",
+                    help="print the built-in domain profiles and exit")
+    ap.add_argument("--no-learn", action="store_true",
+                    help="do not read or record the local surfaced/used "
+                         "feedback (env AGG_SEARCH_NO_LEARN)")
     a = ap.parse_args()
-    apply_env_defaults(a)
+    if a.list_profiles:
+        print("\n".join(profiles.describe()))
+        return
+    a.default_engines = DEFAULT_ENGINES
+    a.default_recency = None
+    a.default_snippet_chars = DEFAULT_SNIPPET_CHARS
+    a.default_top_n = DEFAULT_TOP_N
+    a.default_per_engine = DEFAULT_PER_ENGINE
+    env_fields = apply_env_defaults(a)
+    profile_name = a.profile or getenv("AGG_SEARCH_PROFILE") or "general"
+    try:
+        profile = profiles.load(profile_name)
+    except profiles.UnknownProfile as exc:
+        sys.exit(str(exc.args[0]))
+    profiles.apply(a, profile, env_fields)
+    use_learn = not a.no_learn and not _env_flag("AGG_SEARCH_NO_LEARN")
     ENGINE_TIMEOUT = max(1.0, min(120.0, a.engine_timeout))
     _FAST_MODE = bool(a.fast) and not a.show_config
     if a.show_config:
-        print(json.dumps(show_config(a), ensure_ascii=False, sort_keys=True))
+        print(json.dumps(show_config(a, profile_name, profile, use_learn),
+                         ensure_ascii=False, sort_keys=True))
         return
     if not a.query:
         sys.exit("a query is required (try --help, or --show-config)")
@@ -1041,6 +1200,16 @@ def main():
                         else (2 if a.fast else 0))
     use_cache = not a.no_cache
     use_cooldown = not a.no_cooldown
+
+    # effective engine weights: profile preset x local feedback multipliers.
+    # Part of the cache key: retuning must not serve stale rankings.
+    base_weights = profiles.weights(profile, ENGINES)
+    if use_learn:
+        for eng, mult in learn.load_multipliers(profile_name).items():
+            base_weights[eng] = round(
+                base_weights.get(eng, 1.0) * float(mult), 3)
+    weight_sig = "profile=%s;%s" % (profile_name, ",".join(
+        "%s=%.3f" % (k, v) for k, v in sorted(base_weights.items())))
 
     # 1a. credential prefilter: missing keys never take a thread (MF1b companion)
     status = {}
@@ -1085,7 +1254,8 @@ def main():
                      min_sources=fast_min_sources,
                      include_domains=include_domains,
                      exclude_domains=exclude_domains,
-                     snippet_chars=snippet_chars)
+                     snippet_chars=snippet_chars,
+                     extra=weight_sig)
     cached = False
     cache_age = 0.0
     timings = {}
@@ -1142,10 +1312,8 @@ def main():
             sys.exit("no results (engines healthy, query too narrow): %s"
                      % json.dumps(status))
         sys.exit("all engines failed: %s" % json.dumps(status))
-    weights = None
-    if len(queries) > 1:
-        weights = {name: ENGINES.get(name.split("#", 1)[0], (None, 1.0))[1]
-                   for name in results}
+    weights = {name: base_weights.get(name.split("#", 1)[0], 1.0)
+               for name in results}
     fuse_t0 = time.perf_counter()
     ranked = rrf_fuse(results, a.rrf_top, weights, diversify=diversify)
     dedupe_ms = (time.perf_counter() - fuse_t0) * 1000.0
@@ -1168,12 +1336,15 @@ def main():
             note = err
     ranked = ranked[:a.top_n]
     distinct_domains = len({domain_of(u) for u, _, _ in ranked})
+    if use_learn:
+        learn.record_surfaced(profile_name, ranked)
 
     answer_text, answer_note = None, ""
     if a.answer:
         answer_text, answer_note = answer_query(a.query, ranked, a.answer)
 
     health = {"cached": cached, "diversify": diversify,
+              "profile": profile_name,
               "distinct_domains": distinct_domains}
     if include_domains or exclude_domains:
         health["domain_filter"] = {"include": list(include_domains),
@@ -1215,6 +1386,8 @@ def main():
 
     out = ["# Aggregate search: %s" % a.query, ""]
     out.append("engines: " + "; ".join("%s=%s" % kv for kv in status.items()))
+    if profile_name != "general":
+        out.append("profile: %s" % profile_name)
     if cached:
         out.append("cache: hit (5min TTL)")
     if filtered:

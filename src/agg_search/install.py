@@ -283,6 +283,7 @@ def describe(name, argv, env, scope):
                 "snippet": spec["yaml"]}
     doc = {"mcpServers": {SERVER: entry}}
     return {"mode": "json", "path": "", "config": doc,
+            "section": ["mcpServers"], "entry": entry,
             "snippet": json.dumps(doc, indent=2, ensure_ascii=False)}
 
 
@@ -311,6 +312,9 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true",
                     help="verify the client config exists, parses, holds the "
                          "server entry and that the runtime binary resolves")
+    ap.add_argument("--profile", default=None,
+                    help="pin this client to a domain profile "
+                         "(sets AGG_SEARCH_PROFILE in its env)")
     a = ap.parse_args(argv)
 
     if a.list or not a.client:
@@ -323,11 +327,13 @@ def main(argv=None):
 
     argv_cmd = [a.command] + [x for x in a.args.split(",") if x]
     env = {}
+    if a.profile:
+        env["AGG_SEARCH_PROFILE"] = a.profile
     for item in a.env:
         key, _, value = item.partition("=")
         if not key:
             raise SystemExit("--env expects KEY=VALUE, got %r" % item)
-        env[key] = value
+        env[key] = value  # explicit --env wins over --profile
 
     info = describe(a.client, argv_cmd, env, a.scope)
     if a.as_json:

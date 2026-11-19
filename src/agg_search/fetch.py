@@ -33,6 +33,11 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+try:  # package import (installed, `python -m agg_search.fetch`)
+    from . import learn
+except ImportError:  # pragma: no cover - direct script execution
+    import learn  # type: ignore[no-redef]
+
 PKG_DIR = str(Path(__file__).resolve().parent)
 CRAWL_ENV_FALLBACK = os.path.expanduser("~/.local/bin/crawl-env")
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
@@ -86,6 +91,10 @@ def usable(d):
     """A page worth keeping: real text and no error/block marker."""
     return bool(d) and not d.get("error") and not d.get("blocked") \
         and bool(d.get("text"))
+
+
+def _env_flag(key):
+    return os.environ.get(key, "").strip().lower() in ("1", "true", "yes")
 
 
 def getenv(key, default=None):
@@ -266,6 +275,9 @@ def main():
                     help="permit loopback/private targets (local dev servers, host proxies)")
     ap.add_argument("--no-cache", action="store_true",
                     help="bypass the 15 min page cache")
+    ap.add_argument("--no-learn", action="store_true",
+                    help="do not record which engines surfaced a page you "
+                         "read (env AGG_SEARCH_NO_LEARN)")
     a = ap.parse_args()
     a.text_limit = max(500, min(200000, a.text_limit))
 
@@ -286,13 +298,17 @@ def main():
     # page cache: hits are printed as results with cached=true and never
     # reach an engine rung; only usable pages are stored.
     use_cache = not a.no_cache
+    use_learn = not a.no_learn and not _env_flag("AGG_SEARCH_NO_LEARN")
     store = load_cache() if use_cache else {}
     now = time.time()
 
     def remember(d):
-        if use_cache and usable(d):
-            store[cache_key(d["url"], a)] = {"at": now, "result": d}
-            save_cache(store)
+        if usable(d):
+            if use_cache:
+                store[cache_key(d["url"], a)] = {"at": now, "result": d}
+                save_cache(store)
+            if use_learn:
+                learn.record_used(d["url"])
 
     pending = []
     for u in guarded:

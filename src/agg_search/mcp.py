@@ -25,6 +25,11 @@ import threading
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 
+try:  # package import (installed, `python -m agg_search.mcp`)
+    from . import profiles
+except ImportError:  # pragma: no cover - direct script execution
+    import profiles  # type: ignore[no-redef]
+
 SERVER_NAME = "agg-search"
 PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
@@ -66,9 +71,17 @@ SEARCH_SCHEMA = {
             "type": "array",
             "items": {"type": "string",
                       "enum": ["exa", "brave", "serper", "deepseek",
-                               "firecrawl", "anysearch", "tavily", "searxng"]},
+                               "firecrawl", "anysearch", "tavily", "searxng",
+                               "openalex", "hn", "stack"]},
             "description": "Subset of engines to query. Omit for all configured "
                            "engines; engines without a key are skipped anyway.",
+        },
+        "profile": {
+            "type": "string",
+            "enum": profiles.names(),
+            "description": "Domain preset: engines, RRF weights, recency and "
+                           "snippet length tuned per field. Explicit arguments "
+                           "still win over the profile.",
         },
         "include_domains": {
             "type": "array", "items": {"type": "string"},
@@ -266,6 +279,8 @@ def build_args(name: str, arguments: dict) -> list[str]:
             args += ["--budget-secs", str(arguments["budget_secs"])]
         if arguments.get("engine_timeout"):
             args += ["--engine-timeout", str(arguments["engine_timeout"])]
+        if arguments.get("profile"):
+            args += ["--profile", str(arguments["profile"])]
         if arguments.get("no_jina"):
             args.append("--no-jina")
         return args

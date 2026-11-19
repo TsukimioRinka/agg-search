@@ -30,7 +30,10 @@ class StdlibOnlyTest(unittest.TestCase):
     CONTAINER_ONLY = {"fetch_container.py"}
 
     def test_no_third_party_imports(self):
-        stdlib = set(sys.stdlib_module_names) | {"agg_search"}
+        # `import learn` / `import profiles` are this package's own modules
+        # (absolute-import fallbacks for direct script execution).
+        local = {p.stem for p in SRC.glob("*.py")}
+        stdlib = set(sys.stdlib_module_names) | {"agg_search"} | local
         offenders = {}
         for path in sorted(SRC.glob("*.py")):
             if path.name in self.CONTAINER_ONLY:

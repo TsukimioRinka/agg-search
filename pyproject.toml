@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agg-search"
-version = "0.2.1"
+version = "0.3.0"
 description = "Multi-engine web search with RRF fusion, Jina reranking, query expansion and a tiered fetcher — CLI + MCP server, stdlib only."
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,6 +27,7 @@ crawl-fetch = "agg_search.fetch:main"
 agg-search-eval = "agg_search.eval:main"
 agg-search-mcp = "agg_search.mcp:main"
 agg-search-http = "agg_search.http_transport:main"
+agg-search-tune = "agg_search.learn:main"
 agg-search-install = "agg_search.install:main"
 
 [tool.setuptools]
