@@ -283,6 +283,42 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
         joined = " | ".join(payload["engine_health"]["degraded"])
         self.assertIn("fell back to keyless: hn,searxng", joined)
 
+    def test_academic_portal_falls_back_to_searxng_when_openalex_cooling(self):
+        import time as _time
+        orig_sx = search.ENGINES["searxng"]
+        search.ENGINES["searxng"] = (
+            lambda q, n, r: ([("https://arxiv.org/abs/2211.17192",
+                               "Speculative Decoding", "paper")], None),
+            orig_sx[1])
+        try:
+            argv = [
+                "agg-search", "speculative decoding",
+                "--portal", "codex.academic", "--no-jina",
+                "--no-cache", "--json",
+            ]
+            buf = io.StringIO()
+            with mock.patch.dict(os.environ, {
+                "EXA_API_KEY": "", "DEEPSEEK_API_KEY": "",
+                "BRAVE_API_KEY": "", "TAVILY_API_KEY": "",
+                "TAVILY_API_KEY_BACKUP": "",
+            }), mock.patch.object(search, "getenv",
+                                  side_effect=lambda k, d=None: os.environ.get(k) or d), \
+                    mock.patch.object(search, "load_cooldown",
+                                      return_value={"openalex": _time.time() + 300}), \
+                    mock.patch.object(search, "save_cooldown"), \
+                    mock.patch.object(sys, "argv", argv), \
+                    contextlib.redirect_stdout(buf):
+                search.main()
+        finally:
+            search.ENGINES["searxng"] = orig_sx
+
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["engine_health"]["portal"], "codex.academic")
+        self.assertEqual(payload["results"][0]["engines"], ["searxng"])
+        joined = " | ".join(payload["engine_health"]["degraded"])
+        self.assertIn("engine openalex cooling", joined)
+        self.assertIn("fell back to keyless: searxng", joined)
+
     def test_show_config_portal_reports_dependencies_without_secrets(self):
         secret = "sk-do-not-leak-999"
         argv = ["agg-search", "--portal", "claude-code.code", "--show-config"]

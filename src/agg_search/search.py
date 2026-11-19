@@ -1644,14 +1644,6 @@ def main():
             if portal:
                 degraded.append("engine %s skipped: missing %s" % (e, miss))
     engines = [e for e in engines if e not in status]
-    if portal and not engines and not explicit_engines:
-        fb = [e for e in portal["dependencies"].get("keyless_fallback", ())
-              if e in ENGINES and missing_credential(e) is None]
-        if fb:
-            engines = fb
-            degraded.append(
-                "all configured engines lacked keys; fell back to keyless: %s"
-                % ",".join(fb))
     # cooldown filter: quota/antibot/timeout only, empty never cools (MF3)
     cooldown = load_cooldown() if use_cooldown else {}
     now = time.time()
@@ -1660,6 +1652,17 @@ def main():
             status[e] = "skipped: cooling (%s)" % time.strftime(
                 "%M:%S", time.gmtime(cooldown[e] - now))
             engines.remove(e)
+            if portal:
+                degraded.append("engine %s cooling" % e)
+    if portal and not engines and not explicit_engines:
+        fb = [e for e in portal["dependencies"].get("keyless_fallback", ())
+              if e in ENGINES and missing_credential(e) is None
+              and cooldown.get(e, 0) <= now]
+        if fb:
+            engines = fb
+            degraded.append(
+                "all configured engines skipped/cooling; fell back to keyless: %s"
+                % ",".join(fb))
     if not engines and not status:
         sys.exit("no valid engines in --engines (valid: %s)"
                  % ",".join(ENGINES))

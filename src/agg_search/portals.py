@@ -138,7 +138,7 @@ DOMAIN_SPECS = {
             },
         ),
         "required_engines": ("openalex",),
-        "keyless_fallback": ("openalex",),
+        "keyless_fallback": ("openalex", "searxng"),
         "prompts": {
             "expand": (
                 "Rewrite the research topic below into {count} concise academic "
