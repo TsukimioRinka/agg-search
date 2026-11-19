@@ -67,6 +67,15 @@ class ArgumentMappingTest(unittest.TestCase):
                                          "engines": ["brave", "exa"]})
         self.assertEqual(args[args.index("--engines") + 1], "brave,exa")
 
+    def test_fast_is_on_unless_disabled(self):
+        self.assertIn("--fast", mcp.build_args("search", {"query": "q"}))
+        self.assertNotIn("--fast", mcp.build_args(
+            "search", {"query": "q", "fast": False}))
+
+    def test_engine_timeout_passes_through(self):
+        args = mcp.build_args("search", {"query": "q", "engine_timeout": 12})
+        self.assertEqual(args[args.index("--engine-timeout") + 1], "12")
+
     def test_fetch_allow_private(self):
         args = mcp.build_args("fetch", {"urls": ["https://a.test"],
                                         "allow_private": True})

@@ -173,6 +173,7 @@ def cache_key(query, engines, recency, per_engine, rrf_top, top_n, no_jina,
              ",".join(sorted(parse_domains(include_domains))),
              ",".join(sorted(parse_domains(exclude_domains))),
              str(clamp_snippet_chars(snippet_chars)),
+             "%.1f" % ENGINE_TIMEOUT,
              getenv("JINA_RERANK_MODEL", JINA_MODELS[0]),
              getenv("SEARXNG_URL", "http://127.0.0.1:8080"),
              getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")]
@@ -350,7 +351,9 @@ def diversify_ranked(ranked):
 
 
 
-def http_json(url, *, method="GET", body=None, headers=None, timeout=ENGINE_TIMEOUT):
+def http_json(url, *, method="GET", body=None, headers=None, timeout=None):
+    if timeout is None:
+        timeout = ENGINE_TIMEOUT
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method,
                                  headers={"Content-Type": "application/json",
@@ -371,9 +374,11 @@ def _effective_timeout(want):
     return max(0.5, min(want, dl - time.monotonic()))
 
 
-def http_json_retry(url, *, body=None, headers=None, timeout=ENGINE_TIMEOUT):
+def http_json_retry(url, *, body=None, headers=None, timeout=None):
     """POST with one retry for transient statuses (the DeepSeek guidance:
     retry 408/429/5xx; never retry other 4xx)."""
+    if timeout is None:
+        timeout = ENGINE_TIMEOUT
     try:
         return http_json(url, method="POST", body=body, headers=headers,
                          timeout=timeout)
@@ -935,6 +940,7 @@ def show_config(a):
 
 
 def main():
+    global ENGINE_TIMEOUT, _FAST_MODE
     ap = argparse.ArgumentParser(description="parallel multi-engine search + RRF + jina rerank")
     ap.add_argument("query", nargs="?", help="search query")
     ap.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
@@ -991,9 +997,13 @@ def main():
                     help="print the effective settings as one JSON object and "
                          "exit 0 before any network call; credentials appear "
                          "as booleans only, never as key values")
+    ap.add_argument("--engine-timeout", type=float, default=ENGINE_TIMEOUT,
+                    metavar="SECS",
+                    help="per-engine HTTP timeout in seconds "
+                         "(default: %(default)s)")
     a = ap.parse_args()
     apply_env_defaults(a)
-    global _FAST_MODE
+    ENGINE_TIMEOUT = max(1.0, min(120.0, a.engine_timeout))
     _FAST_MODE = bool(a.fast) and not a.show_config
     if a.show_config:
         print(json.dumps(show_config(a), ensure_ascii=False, sort_keys=True))

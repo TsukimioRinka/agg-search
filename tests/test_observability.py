@@ -283,5 +283,18 @@ class ShowConfigTest(unittest.TestCase):
         self.assertEqual(cfg["min_sources"], 2)
 
 
+class EngineTimeoutTest(unittest.TestCase):
+    def test_cache_key_tracks_engine_timeout(self):
+        old = m.ENGINE_TIMEOUT
+        try:
+            m.ENGINE_TIMEOUT = 25
+            a = m.cache_key("q", ["t_obs"], None, 5, 15, 10, False, 0, False)
+            m.ENGINE_TIMEOUT = 7
+            b = m.cache_key("q", ["t_obs"], None, 5, 15, 10, False, 0, False)
+        finally:
+            m.ENGINE_TIMEOUT = old
+        self.assertNotEqual(a, b)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

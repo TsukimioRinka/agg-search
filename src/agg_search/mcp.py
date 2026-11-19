@@ -86,11 +86,16 @@ SEARCH_SCHEMA = {
                    "description": "Add a cited answer section (needs local ollama)."},
         "answer_deepseek": {"type": "boolean",
                             "description": "Use the DeepSeek chat API for the answer."},
-        "fast": {"type": "boolean", "default": False,
+        "fast": {"type": "boolean", "default": True,
                  "description": "Fan out one pool under a shared deadline and "
-                                "return once enough sources answered."},
+                                "return once enough sources answered. On by "
+                                "default so a tool call stays interactive; "
+                                "set false to wait for every engine."},
         "budget_secs": {"type": "number", "minimum": 1, "maximum": 60,
                         "description": "Recall deadline (fast mode only)."},
+        "engine_timeout": {"type": "number", "minimum": 5, "maximum": 120,
+                           "description": "Per-engine HTTP timeout in seconds "
+                                          "(default 25)."},
         "no_jina": {"type": "boolean",
                     "description": "Skip reranking and keep the RRF order."},
     },
@@ -252,10 +257,12 @@ def build_args(name: str, arguments: dict) -> list[str]:
             args += ["--answer", "deepseek"]
         elif arguments.get("answer"):
             args.append("--answer")
-        if arguments.get("fast"):
+        if arguments.get("fast", True):
             args.append("--fast")
         if arguments.get("budget_secs"):
             args += ["--budget-secs", str(arguments["budget_secs"])]
+        if arguments.get("engine_timeout"):
+            args += ["--engine-timeout", str(arguments["engine_timeout"])]
         if arguments.get("no_jina"):
             args.append("--no-jina")
         return args
