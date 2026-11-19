@@ -57,7 +57,7 @@ flowchart LR
 ## 安装
 
 ```bash
-# PyPI（0.1.2 起）
+# PyPI（0.2.0 起）
 uvx --from agg-search agg-search-mcp          # 不落盘，直接跑
 
 # 或者装成常驻命令（6 个入口：3 个 CLI + MCP stdio/HTTP + 安装器）
@@ -170,6 +170,7 @@ python3 -m unittest discover -s tests -v
 - 密钥只在进程环境里读取，不写日志、不落盘；`--show-config` 只输出布尔值。
 - 抓取前置 SSRF 校验：仅 http(s)、无 userinfo、私网/回环/链路本地/云元数据地址默认拒绝（`--allow-private` 显式放开）；响应体上限 4 MiB。
 - 抓取在容器内执行，宿主机不留浏览器与爬虫依赖。
+- 进入模型上下文的页面文本会剥离零宽与双向控制字符（隐藏指令的常见载体），MCP 指令块也声明页面内容为不可信数据。
 - HTTP 传输默认回环绑定 + `Host`/`Origin` 白名单，无认证时不得裸奔到公网。
 
 ## 文档

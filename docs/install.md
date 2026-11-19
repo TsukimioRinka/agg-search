@@ -13,7 +13,7 @@
 
 前置条件：装好 [uv](https://docs.astral.sh/uv/)（`curl -LsSf https://astral.sh/uv/install.sh | sh`）。uv 会自动挑选并下载符合 `>=3.10` 的 Python，本机不需要预装对应解释器。
 
-**方式一：uvx，不落盘（PyPI 0.1.2 起）**
+**方式一：uvx，不落盘（PyPI 0.2.0 起）**
 
 ```bash
 uvx --from agg-search agg-search-mcp
@@ -26,7 +26,7 @@ uv tool install agg-search
 agg-search-mcp          # 之后直接调用，版本固定到安装时
 ```
 
-升级：`uv tool upgrade agg-search`。想钉版本：`uv tool install 'agg-search==0.1.2'`。
+升级：`uv tool upgrade agg-search`。想钉版本：`uv tool install 'agg-search==0.2.0'`。
 
 **方式三：从 git checkout 运行（改代码/未发布提交）**
 
@@ -99,10 +99,12 @@ SEARXNG_URL=http://127.0.0.1:8080
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' | uvx --from agg-search@latest agg-search-mcp
 ```
 
-期望输出（单行 JSON）：
+期望输出（单行 JSON；`instructions` 字段较长，这里省略）：
 
 ```json
-{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {"listChanged": false}}, "serverInfo": {"name": "agg-search", "version": "0.1.2"}}}
+{"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {"listChanged": false}}, "serverInfo": {"name": "agg-search", "version": "0.2.0"}, "instructions": "…"}}
 ```
+
+客户端请求哪个受支持的协议版本，服务端就回哪个（`2025-06-18` / `2025-03-26` / `2024-11-05`）；不认识的版本回 `2025-06-18`。`version` 随安装版本变化。
 
 看到带 `serverInfo` 的 JSON 就说明进程能起、协议能应答；`version` 会随安装版本变化。再验一次工具列表就把 `method` 换成 `tools/list`（`id` 用 2）。若只看到 uv 的下载日志、没有 JSON 响应，通常是 `uvx` 不在 `PATH`（GUI 客户端场景）——换成 `which uvx` 得到的绝对路径。

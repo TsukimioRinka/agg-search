@@ -10,7 +10,7 @@ uvx --from agg-search agg-search-mcp
 
 | 方式 | 命令 | 适用 |
 |---|---|---|
-| PyPI 直接跑 | `uvx --from agg-search agg-search-mcp` | 只装了 [uv](https://docs.astral.sh/uv/)；PyPI **0.1.2 起**可用 |
+| PyPI 直接跑 | `uvx --from agg-search agg-search-mcp` | 只装了 [uv](https://docs.astral.sh/uv/)；PyPI **0.2.0 起**可用 |
 | 常驻安装 | `uv tool install agg-search`，之后命令直接用 `agg-search-mcp` | 想固定版本、少一层 uvx 解析 |
 | 仓库内运行 | `uv run --directory /path/to/agg-search agg-search-mcp` | 改代码或未发布提交；路径换成你的 checkout 绝对路径 |
 
