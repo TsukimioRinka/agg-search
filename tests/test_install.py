@@ -6,6 +6,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 from agg_search import install
 
@@ -106,6 +107,46 @@ class WriteTest(unittest.TestCase):
             if ".bak-" in name:
                 backup = os.path.join(self.tmp.name, name)
                 self.assertEqual(os.stat(backup).st_mode & 0o777, 0o600)
+
+
+class CheckTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = os.path.join(self.tmp.name, "mcp.json")
+
+    def _info(self):
+        return install.describe("cursor", ["uvx"], {}, "user")
+
+    def test_missing_file_reports_problem(self):
+        info = {"mode": "json", "path": self.path,
+                "section": ["mcpServers"]}
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client("cursor", info, "uvx"), 1)
+
+    def test_written_config_passes(self):
+        info = {"mode": "json", "path": self.path,
+                "section": ["mcpServers"]}
+        install.write_config(self.path, ("mcpServers",), "agg-search",
+                             {"command": "uvx", "args": []})
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client("cursor", info, "uvx"), 0)
+
+    def test_missing_entry_fails(self):
+        info = {"mode": "json", "path": self.path,
+                "section": ["mcpServers"]}
+        pathlib.Path(self.path).write_text(json.dumps({"mcpServers": {}}),
+                                           encoding="utf-8")
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client("cursor", info, "uvx"), 1)
+
+    def test_runtime_missing_fails(self):
+        info = {"mode": "json", "path": self.path,
+                "section": ["mcpServers"]}
+        install.write_config(self.path, ("mcpServers",), "agg-search",
+                             {"command": "uvx", "args": []})
+        with mock.patch.object(install.shutil, "which", return_value=None):
+            self.assertEqual(install.check_client("cursor", info, "uvx"), 1)
 
 
 class CliTest(unittest.TestCase):

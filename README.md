@@ -130,6 +130,7 @@ agg-search-install --list                     # 支持 13 家客户端
 agg-search-install -c claude-code             # 打印 claude mcp add 命令
 agg-search-install -c cursor --write          # 合并进 ~/.cursor/mcp.json（自动备份）
 agg-search-install -c vscode --scope project  # 写 .vscode/mcp.json
+agg-search-install -c cursor --check          # 校验文件、条目与运行时是否就绪
 ```
 
 逐客户端的路径、JSON/TOML/YAML 片段与 GUI 环境变量陷阱见 [docs/adapters.md](docs/adapters.md)。

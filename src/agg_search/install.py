@@ -182,6 +182,54 @@ def write_config(path, section, name, entry):
     return path
 
 
+def check_client(name, info, runtime):
+    """Report whether the client is actually wired up. Exit 0 only when the
+    config parses, the entry exists and the runtime resolves."""
+    problems = []
+    if info.get("mode") != "json" or not info.get("path"):
+        print("%s: no config file to inspect; %s"
+              % (name, CLIENTS[name].get("doc", "register with its CLI")))
+    else:
+        path = os.path.abspath(os.path.expanduser(info["path"]))
+        print("%s: %s" % (name, path))
+        if not os.path.exists(path):
+            problems.append("config file does not exist (run --write or register "
+                            "through the client)")
+        else:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    doc = json.load(f)
+            except (OSError, ValueError) as exc:
+                problems.append("config does not parse: %s" % exc)
+            else:
+                try:
+                    node = doc
+                    for key in info["section"]:
+                        node = node[key]
+                    entry = node[SERVER]
+                except (KeyError, TypeError):
+                    problems.append("no %r entry under %s"
+                                    % (SERVER, ".".join(info["section"])))
+                else:
+                    command = entry.get("command")
+                    if not command:
+                        problems.append("entry has no command")
+                    elif not (os.path.isabs(command)
+                              or shutil.which(command)):
+                        problems.append("runtime %r does not resolve on PATH"
+                                        % command)
+
+    if not (os.path.isabs(runtime) or shutil.which(runtime)):
+        problems.append("runtime %r does not resolve on PATH (GUI clients "
+                        "need an absolute path)" % runtime)
+    for item in problems:
+        print("  ! " + item)
+    if problems:
+        return 1
+    print("  ok")
+    return 0
+
+
 def _resolve_path(spec, scope):
     if callable(spec):
         return spec()
@@ -258,6 +306,9 @@ def main(argv=None):
                     help="comma-separated runtime arguments")
     ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                     help="environment entry for the client config (repeatable)")
+    ap.add_argument("--check", action="store_true",
+                    help="verify the client config exists, parses, holds the "
+                         "server entry and that the runtime binary resolves")
     a = ap.parse_args(argv)
 
     if a.list or not a.client:
@@ -280,6 +331,8 @@ def main(argv=None):
     if a.as_json:
         print(json.dumps(info, ensure_ascii=False, indent=2))
         return 0
+    if a.check:
+        return check_client(a.client, info, argv_cmd[0])
     if a.write:
         if info.get("mode") != "json" or not info.get("path"):
             raise SystemExit("%s cannot be written automatically; %s"
