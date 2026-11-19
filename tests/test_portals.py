@@ -91,6 +91,19 @@ class PortalRegistrySyncTest(unittest.TestCase):
     def test_catalog_and_portals_are_consistent(self):
         portals_data = json.loads(
             (ROOT / "portals.json").read_text(encoding="utf-8"))["portals"]
+        disk_cat = json.loads(
+            (ROOT / "catalog.json").read_text(encoding="utf-8"))
+        for agent_row in disk_cat["agents"]:
+            agent = agent_row["id"]
+            for entry in agent_row["entries"]:
+                pid = entry["portal"]
+                self.assertEqual(pid, "%s.%s" % (agent, entry["profile"]))
+                self.assertIn(pid, portals_data)
+                p = portals_data[pid]
+                self.assertEqual(entry["name"], p["server_name"])
+                self.assertEqual(entry["env"], p["env"])
+                self.assertEqual(entry["entry"], p["install"]["entry"])
+
         cat_data = install.catalog()
         for agent_row in cat_data["agents"]:
             agent = agent_row["id"]
@@ -162,7 +175,7 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
                 "speculative decoding", 2,
                 prompt_template=portals.load("codex.academic")["prompts"]["expand"])
         self.assertEqual(variants, ["speculative decoding draft verification"])
-        self.assertIn("scholarly", captured["prompt"].lower())
+        self.assertIn("academic", captured["prompt"].lower())
 
     def test_answer_with_fallback_follows_agent_order(self):
         calls = []
@@ -234,6 +247,41 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
         joined = " | ".join(health["degraded"])
         self.assertIn("expand failed", joined)
         self.assertIn("local:", joined)
+
+    def test_news_portal_falls_back_to_keyless_when_keys_missing(self):
+        orig_hn = search.ENGINES["hn"]
+        orig_sx = search.ENGINES["searxng"]
+        search.ENGINES["hn"] = (
+            lambda q, n, r: ([("https://news.ycombinator.com/item?id=1",
+                               "HN Release", "details")], None),
+            orig_hn[1])
+        search.ENGINES["searxng"] = (
+            lambda q, n, r: ([], None), orig_sx[1])
+        try:
+            argv = [
+                "agg-search", "openai release",
+                "--portal", "gemini.news", "--no-jina",
+                "--no-cache", "--no-cooldown", "--json",
+            ]
+            buf = io.StringIO()
+            with mock.patch.dict(os.environ, {
+                "BRAVE_API_KEY": "", "SERPER_API_KEY": "",
+                "TAVILY_API_KEY": "", "TAVILY_API_KEY_BACKUP": "",
+                "FIRECRAWL_API_KEY": "",
+            }), mock.patch.object(search, "getenv",
+                                  side_effect=lambda k, d=None: os.environ.get(k) or d), \
+                    mock.patch.object(sys, "argv", argv), \
+                    contextlib.redirect_stdout(buf):
+                search.main()
+        finally:
+            search.ENGINES["hn"] = orig_hn
+            search.ENGINES["searxng"] = orig_sx
+
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["engine_health"]["portal"], "gemini.news")
+        self.assertEqual(payload["results"][0]["engines"], ["hn"])
+        joined = " | ".join(payload["engine_health"]["degraded"])
+        self.assertIn("fell back to keyless: hn,searxng", joined)
 
     def test_show_config_portal_reports_dependencies_without_secrets(self):
         secret = "sk-do-not-leak-999"

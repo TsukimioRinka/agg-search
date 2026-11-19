@@ -103,7 +103,9 @@ surfaced < 30                                             → multiplier = 1.0
 两个调优来自这轮实测，而不是拍脑袋：
 
 1. **fast 模式的早退必须等主引擎**：`openalex`/`stack` 比 brave 慢，早期版本会在它们返回前就用次要引擎的结果收工，画像名存实亡。现在 profile 声明 `primary`，`--fast` 只有在主引擎出结果（或预算耗尽）后才提前返回；`engine_health.primary` 会报告主引擎状态。
-2. **Jina 精排与 RRF 按比例混合**：listwise 模型只看标题+摘要，会把「标题里正好有查询词」的通用网页排在论文/问答之前。`academic` 用 `blend=0.4`、`code` 用 `0.6`（1.0 = 旧的纯 Jina 排序），并且请求**全量**候选的分数再混合，否则 Jina 的 top-n 截断会先丢掉主引擎的候选。
+2. **Jina 精排与 RRF 按比例混合**：listwise 模型只看标题+摘要，会把「标题里正好有查询词」的通用网页排在论文/问答之前。`academic` 与 `code` 均采用 `blend=0.4`（1.0 = 纯 Jina 排序），并且请求**全量**候选的分数再混合，否则 Jina 的 top-n 截断会先丢掉主引擎的候选。
+
+随后扩展的 18 条领域评测与 5 项增强机制对照实验见 [benchmarks.md](benchmarks.md)：在合入内容级去重（默认开启，`--no-dedupe` 可关闭）与权威域软先验（`academic=1.35`、`code=1.25`）后，`academic` 权威源@3 从 `11/18` 升至 `16/18`，`code` 从 `3/18` 升至 `9/18`；`general` 10 条回归 `nDCG@10=0.9345` 无回退。`agent × domain` 门户隔离规格见 [portals.md](portals.md)。
 
 复现：
 

@@ -41,6 +41,7 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -433,6 +434,101 @@ def http_json_retry(url, *, body=None, headers=None, timeout=None):
 
 def norm_url(u):
     return u.split("#", 1)[0].rstrip("/")
+
+
+_TRACKING_PREFIXES = ("utm_", "ref", "fbclid", "gclid", "mc_cid", "mc_eid",
+                      "spm")
+_ARXIV_PATH_RE = re.compile(r"^/(?:abs|pdf|html)/([^/?#]+?)(?:\.pdf)?$")
+_DEDUPE_STOP = frozenset({
+    "a", "an", "the", "and", "or", "for", "of", "to", "in", "on", "with",
+    "by", "from", "at", "is", "are", "as", "how", "what", "why", "when",
+})
+
+
+def canonical_url(url):
+    """Canonical key collapsing scheme/www/tracking/arXiv mirrors."""
+    raw = (url or "").strip()
+    try:
+        parts = urllib.parse.urlsplit(raw)
+    except ValueError:
+        return norm_url(raw)
+    host = (parts.hostname or "").lower().removeprefix("www.")
+    if not host:
+        return norm_url(raw)
+    scheme = ("https" if parts.scheme.lower() in ("http", "https")
+              else parts.scheme.lower())
+    path = parts.path or ""
+    if host == "doi.org":
+        m = re.match(r"^/10\.48550/arxiv\.([^/?#]+)$", path, re.I)
+        if m:
+            return "arxiv:" + re.sub(r"v\d+$", "", m.group(1).lower())
+    if host in ("arxiv.org", "export.arxiv.org"):
+        m = _ARXIV_PATH_RE.match(path)
+        if m:
+            return "arxiv:" + re.sub(r"v\d+$", "", m.group(1).lower())
+    if parts.query:
+        kept = [
+            (k, v)
+            for k, v in urllib.parse.parse_qsl(parts.query,
+                                               keep_blank_values=True)
+            if not any(k.lower().startswith(pref)
+                       for pref in _TRACKING_PREFIXES)
+        ]
+        query = urllib.parse.urlencode(kept)
+    else:
+        query = ""
+    path = path.rstrip("/")
+    port = ""
+    try:
+        if parts.port and not ((scheme == "https" and parts.port == 443)
+                               or (scheme == "http" and parts.port == 80)):
+            port = ":%d" % parts.port
+    except ValueError:
+        pass
+    return urllib.parse.urlunsplit((scheme, host + port, path, query, ""))
+
+
+def _dedupe_tokens(text):
+    out = set()
+    for w in re.findall(r"[a-z0-9]+", (text or "").lower()):
+        if w not in _DEDUPE_STOP and len(w) > 1:
+            out.add(w)
+    for run in re.findall(r"[\u4e00-\u9fff]+", text or ""):
+        if len(run) == 1:
+            out.add(run)
+        else:
+            for i in range(len(run) - 1):
+                out.add(run[i:i + 2])
+    return out
+
+
+def _jaccard(a, b):
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def is_content_duplicate(t1, s1, t2, s2):
+    """Conservative near-duplicate detector for substantive web results.
+
+    Requires substantive title length (>=5 distinct tokens and >=25 chars) so
+    short synthetic test strings never collapse, plus exact normalized title
+    or high title + snippet agreement.
+    """
+    nt1 = re.sub(r"\s+", " ", (t1 or "").strip().lower())
+    nt2 = re.sub(r"\s+", " ", (t2 or "").strip().lower())
+    tt1, tt2 = _dedupe_tokens(t1), _dedupe_tokens(t2)
+    if len(tt1) < 5 or len(tt2) < 5 or len(nt1) < 25 or len(nt2) < 25:
+        return False
+    if nt1 == nt2:
+        return True
+    tj = _jaccard(tt1, tt2)
+    st1, st2 = _dedupe_tokens(s1), _dedupe_tokens(s2)
+    if tj >= 0.92 and len(st1) >= 8 and len(st2) >= 8:
+        return _jaccard(st1, st2) >= 0.50
+    if tj >= 0.78 and len(st1) >= 12 and len(st2) >= 12:
+        return _jaccard(st1, st2) >= 0.75
+    return False
 
 
 # Zero-width and bidi-control characters hide injected instructions in page
@@ -907,16 +1003,49 @@ def _flat_one(query, n, recency, eng, qi, deadline):
     return ("%s#%d" % (eng, qi)), rows, err, (time.perf_counter() - t0) * 1000.0
 
 
-def rrf_fuse(results, top, weights=None, k=None, diversify=False):
+def rrf_fuse(results, top, weights=None, k=None, diversify=False,
+             dedupe=True, domain_boost=None, boost_factor=1.0):
     """Fuse per-engine rankings; `weights` overrides ENGINES defaults
     (used by scripts/rrf_eval.py for parameter sweeps and by --expand,
     where each engine#variant list is a separate ranking).
     `k` overrides RRF_K (lets the sweep harness call the real function);
-    `diversify` round-robins by eTLD+1 BEFORE truncation so Jina still
-    sees diverse candidates (MF5: never diversify after Jina)."""
+    `dedupe` collapses canonical URL mirrors (http/https, www, tracking query,
+    arXiv abs/pdf/html/DOI) and exact/near-exact duplicate pages while merging
+    engine provenance; `domain_boost`/`boost_factor` apply a soft domain
+    authority prior; `diversify` round-robins by eTLD+1 BEFORE truncation so
+    Jina still sees diverse candidates (MF5: never diversify after Jina)."""
     kk = RRF_K if k is None else k
+    work_results = results
+    if dedupe:
+        raw_rrf = {}
+        for eng, rows in results.items():
+            base = eng.split("#", 1)[0]
+            if weights is None:
+                w = ENGINES.get(base, (None, 1.0))[1]
+            else:
+                w = weights.get(eng, ENGINES.get(base, (None, 1.0))[1])
+            for i, (u, _t, _s) in enumerate(rows):
+                raw_rrf[u] = raw_rrf.get(u, 0.0) + w / (kk + i + 1)
+        canon_rep = {}
+        for u in sorted(raw_rrf, key=raw_rrf.get, reverse=True):
+            cu = canonical_url(u)
+            if cu not in canon_rep:
+                canon_rep[cu] = u
+        remapped = {}
+        for eng, rows in results.items():
+            seen_rep = set()
+            out_rows = []
+            for u, t, s in rows:
+                rep = canon_rep[canonical_url(u)]
+                if rep not in seen_rep:
+                    seen_rep.add(rep)
+                    out_rows.append((rep, t, s))
+            if out_rows:
+                remapped[eng] = out_rows
+        work_results = remapped
+
     score, meta = {}, {}
-    for eng, rows in results.items():
+    for eng, rows in work_results.items():
         base = eng.split("#", 1)[0]
         if weights is None:
             w = ENGINES.get(base, (None, 1.0))[1]
@@ -929,7 +1058,32 @@ def rrf_fuse(results, top, weights=None, k=None, diversify=False):
                                     "engines": []})
             if base not in m["engines"]:
                 m["engines"].append(base)
+    if domain_boost and boost_factor and float(boost_factor) > 1.0:
+        factor = float(boost_factor)
+        rules = parse_domains(domain_boost)
+        for u in list(score):
+            host = _filter_host(u)
+            if any(domain_matches_rule(host, r) for r in rules):
+                score[u] *= factor
     ordered = sorted(score, key=score.get, reverse=True)
+    if dedupe:
+        kept = []
+        for u in ordered:
+            m = meta[u]
+            dup_of = None
+            for ku in kept:
+                km = meta[ku]
+                if is_content_duplicate(m["title"], m["snippet"],
+                                        km["title"], km["snippet"]):
+                    dup_of = ku
+                    break
+            if dup_of is not None:
+                for eng in m["engines"]:
+                    if eng not in meta[dup_of]["engines"]:
+                        meta[dup_of]["engines"].append(eng)
+            else:
+                kept.append(u)
+        ordered = kept
     if diversify:
         # interleave BEFORE truncation: changes the candidate SET Jina sees
         # (reordering the same top-15 is a no-op — Jina scores pairs
@@ -1160,6 +1314,46 @@ def apply_env_defaults(a):
     return applied
 
 
+def _prefetch_for_answer(urls):
+    """Best-effort fetch of top URLs before answer synthesis.
+
+    Honors server-side SSRF policy env vars and never blocks answer fallback.
+    """
+    if not urls:
+        return {}, []
+    cmd = [sys.executable, "-m", "agg_search.fetch", "--text-limit", "4000"]
+    if _env_flag("AGG_SEARCH_ALLOW_PRIVATE"):
+        cmd.append("--allow-private")
+    cidrs = getenv("AGG_SEARCH_ALLOW_CIDRS", "")
+    if cidrs:
+        cmd += ["--allow-cidrs", cidrs]
+    for u in urls:
+        cmd += ["--url", u]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except Exception as exc:  # noqa: BLE001 - prefetch is best-effort
+        return {}, ["answer_fetch failed: %s" % exc]
+    fetched = {}
+    notes = []
+    for line in (proc.stdout or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        body = row.get("text") or row.get("markdown") or ""
+        if not row.get("blocked") and not row.get("error") and body:
+            fetched[row["url"]] = body
+        else:
+            notes.append("answer_fetch skipped %s (%s)" % (
+                row.get("url", ""), row.get("error") or "unusable"))
+    if proc.returncode and not fetched and not notes:
+        notes.append("answer_fetch exited %s" % proc.returncode)
+    return fetched, notes
+
+
 def show_config(a, profile_name="general", profile=None, use_learn=True,
                 portal=None):
     """Effective settings for bug reports: credentials as booleans only.
@@ -1179,6 +1373,7 @@ def show_config(a, profile_name="general", profile=None, use_learn=True,
         "tools": list(portal["tools"]) if portal else ["search", "fetch"],
         "primary": list((profile or {}).get("primary") or []),
         "rerank_blend": (profile or {}).get("rerank_blend"),
+        "authority_boost": (profile or {}).get("authority_boost"),
         "engines": engines,
         "weights": weights,
         "learned_multipliers": learned,
@@ -1194,12 +1389,14 @@ def show_config(a, profile_name="general", profile=None, use_learn=True,
         "min_sources": (a.min_sources if a.min_sources is not None
                         else (2 if a.fast else 0)),
         "expand": a.expand,
+        "dedupe": not getattr(a, "no_dedupe", False),
         "diversify": not a.no_diversify,
         "include_domains": list(parse_domains(a.include_domains)),
         "exclude_domains": list(parse_domains(a.exclude_domains)),
         "cache": not a.no_cache,
         "cooldown": not a.no_cooldown,
         "answer": a.answer,
+        "answer_fetch": getattr(a, "answer_fetch", 0),
         "credentials": {e: missing_credential(e) is None for e in engines},
     }
     if portal:
@@ -1293,6 +1490,12 @@ def main():
     ap.add_argument("--answer-sources", default=None, metavar="PATH|-",
                     help="synthesize an answer from a JSON {query, sources} "
                          "payload (used by the portal `answer` MCP tool)")
+    ap.add_argument("--answer-fetch", type=int, default=0, metavar="N",
+                    help="when --answer is set, fetch top N (0..3) result "
+                         "pages before synthesizing (opt-in read-then-answer)")
+    ap.add_argument("--no-dedupe", action="store_true",
+                    help="disable canonical-URL and near-duplicate collapsing "
+                         "during RRF fusion")
     ap.add_argument("--json", action="store_true", dest="json_out",
                     help="machine-readable JSON output instead of markdown")
     ap.add_argument("--fast", action="store_true",
@@ -1355,6 +1558,7 @@ def main():
     a.default_top_n = DEFAULT_TOP_N
     a.default_per_engine = DEFAULT_PER_ENGINE
     env_fields = apply_env_defaults(a)
+    explicit_engines = (a.engines != DEFAULT_ENGINES and "engines" not in env_fields)
     portal_name = a.portal or getenv("AGG_SEARCH_PORTAL")
     portal = None
     if portal_name:
@@ -1409,6 +1613,9 @@ def main():
         sys.exit("no valid engines in --engines (valid: %s)"
                  % ",".join(ENGINES))
     diversify = not a.no_diversify
+    dedupe = not a.no_dedupe
+    auth_domains = profile.get("authority_domains") or ()
+    auth_boost = float(profile.get("authority_boost") or 1.0)
     include_domains = parse_domains(a.include_domains)
     exclude_domains = parse_domains(a.exclude_domains)
     snippet_chars = clamp_snippet_chars(a.snippet_chars)
@@ -1424,8 +1631,9 @@ def main():
         for eng, mult in learn.load_multipliers(profile_name).items():
             base_weights[eng] = round(
                 base_weights.get(eng, 1.0) * float(mult), 3)
-    weight_sig = "profile=%s;%s" % (profile_name, ",".join(
-        "%s=%.3f" % (k, v) for k, v in sorted(base_weights.items())))
+    weight_sig = "profile=%s;dedupe=%d;auth=%.2f;%s" % (
+        profile_name, int(dedupe), auth_boost,
+        ",".join("%s=%.3f" % (k, v) for k, v in sorted(base_weights.items())))
 
     # 1a. credential prefilter: missing keys never take a thread (MF1b companion)
     status = {}
@@ -1436,6 +1644,14 @@ def main():
             if portal:
                 degraded.append("engine %s skipped: missing %s" % (e, miss))
     engines = [e for e in engines if e not in status]
+    if portal and not engines and not explicit_engines:
+        fb = [e for e in portal["dependencies"].get("keyless_fallback", ())
+              if e in ENGINES and missing_credential(e) is None]
+        if fb:
+            engines = fb
+            degraded.append(
+                "all configured engines lacked keys; fell back to keyless: %s"
+                % ",".join(fb))
     # cooldown filter: quota/antibot/timeout only, empty never cools (MF3)
     cooldown = load_cooldown() if use_cooldown else {}
     now = time.time()
@@ -1539,7 +1755,9 @@ def main():
     weights = {name: base_weights.get(name.split("#", 1)[0], 1.0)
                for name in results}
     fuse_t0 = time.perf_counter()
-    ranked = rrf_fuse(results, a.rrf_top, weights, diversify=diversify)
+    ranked = rrf_fuse(results, a.rrf_top, weights, diversify=diversify,
+                      dedupe=dedupe, domain_boost=auth_domains,
+                      boost_factor=auth_boost)
     dedupe_ms = (time.perf_counter() - fuse_t0) * 1000.0
 
     note = ""
@@ -1569,9 +1787,15 @@ def main():
 
     answer_text, answer_note = None, ""
     if a.answer:
+        fetched_texts = {}
+        fetch_n = max(0, min(3, int(a.answer_fetch or 0)))
+        if fetch_n > 0:
+            fetched_texts, fnotes = _prefetch_for_answer(
+                [u for u, _, _ in ranked[:fetch_n]])
+            degraded.extend(fnotes)
         answer_text, answer_note, _used_mode, ans_deg = answer_with_fallback(
             a.query, ranked, mode=a.answer, prompt_template=prompts["answer"],
-            fallback_order=answer_order)
+            fallback_order=answer_order, fetched_texts=fetched_texts)
         degraded.extend(ans_deg)
 
     health = {"cached": cached, "diversify": diversify,

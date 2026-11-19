@@ -9,7 +9,7 @@
 | 领域 | MCP server 名 | 工具子集与顺序 | 必需引擎（免 key） | 默认时效/参数 | 降级策略 |
 |---|---|---|---|---|---|
 | `academic` | `agg-search-academic` | `search` → `fetch` → `answer` | `openalex` | top_n=15, blend=0.4, snippet=500 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
-| `code` | `agg-search-code` | `search` → `fetch` | `stack` | blend=0.6, snippet=600 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
+| `code` | `agg-search-code` | `search` → `fetch` | `stack` | blend=0.4, snippet=600 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `general` | `agg-search` | `search` → `fetch` | — | balanced | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `news` | `agg-search-news` | `search` → `fetch` | — | recency=`day`, snippet=300 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 

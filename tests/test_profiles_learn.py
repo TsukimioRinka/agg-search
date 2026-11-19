@@ -192,7 +192,7 @@ class RerankBlendTest(unittest.TestCase):
 
     def test_profiles_declare_a_blend(self):
         self.assertEqual(profiles.PROFILES["academic"]["rerank_blend"], 0.4)
-        self.assertEqual(profiles.PROFILES["code"]["rerank_blend"], 0.6)
+        self.assertEqual(profiles.PROFILES["code"]["rerank_blend"], 0.4)
 
     def test_jina_requests_the_full_score_vector(self):
         from unittest import mock

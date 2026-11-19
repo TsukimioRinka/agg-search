@@ -141,10 +141,10 @@ DOMAIN_SPECS = {
         "keyless_fallback": ("openalex",),
         "prompts": {
             "expand": (
-                "Generate {count} scholarly search queries for the research "
-                "topic below. Use canonical paper keywords, technical methods, "
-                "benchmarks, or author/venue terms. One query per line, no "
-                "numbering, no explanations, keep the original language.\n\n"
+                "Rewrite the research topic below into {count} concise academic "
+                "search queries using technical terms, canonical methods or "
+                "benchmark names. Output only the raw queries, one per line, "
+                "no quotes, no numbering, keep the original language.\n\n"
                 "Query: {query}"
             ),
             "answer": (
@@ -276,11 +276,11 @@ DOMAIN_SPECS = {
         "keyless_fallback": ("hn", "searxng"),
         "prompts": {
             "expand": (
-                "Generate {count} current-events search queries for the news "
-                "topic below. Focus on named entities, official announcements, "
-                "releases and primary reporting. One query per line, no "
-                "numbering, no explanations, keep the original language.\n\n"
-                "Query: {query}"
+                "Rewrite the news topic below into {count} concise search "
+                "queries with specific organization, product or policy names. "
+                "Output only the raw queries, one per line, no boolean "
+                "operators, no quotes, no numbering, keep the original "
+                "language.\n\nQuery: {query}"
             ),
             "answer": (
                 "Summarize recent developments using ONLY the sources below. "
@@ -616,6 +616,7 @@ def load(name):
         "snippet_chars": profile.get("snippet_chars"),
         "top_n": profile.get("top_n"),
         "rerank_blend": profile.get("rerank_blend"),
+        "authority_boost": profile.get("authority_boost"),
         "expand": agent_spec["default_expand"],
         "answer_order": list(agent_spec["answer_order"]),
     }

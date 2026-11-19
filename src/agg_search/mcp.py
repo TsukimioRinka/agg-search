@@ -108,6 +108,8 @@ SEARCH_SCHEMA = {
                    "description": "Add a cited answer section (needs local ollama)."},
         "answer_deepseek": {"type": "boolean",
                             "description": "Use the DeepSeek chat API for the answer."},
+        "answer_fetch": {"type": "integer", "minimum": 0, "maximum": 3,
+                         "description": "Fetch top N result pages before answering (0..3)."},
         "fast": {"type": "boolean", "default": True,
                  "description": "Fan out one pool under a shared deadline and "
                                 "return once enough sources answered. On by "
@@ -396,6 +398,8 @@ def build_args(name: str, arguments: dict) -> list[str]:
             args += ["--answer", "deepseek"]
         elif arguments.get("answer"):
             args.append("--answer")
+        if arguments.get("answer_fetch"):
+            args += ["--answer-fetch", str(arguments["answer_fetch"])]
         if arguments.get("fast", True):
             args.append("--fast")
         if arguments.get("budget_secs"):
