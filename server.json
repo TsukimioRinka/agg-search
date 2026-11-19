@@ -16,6 +16,13 @@
         "type": "stdio"
       },
       "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "agg-search"
+        }
+      ],
       "packageArguments": [
         {
           "type": "positional",
