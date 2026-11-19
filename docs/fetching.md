@@ -69,6 +69,24 @@ still fails that test the JSON carries `blocked: true` and the process exits 3.
 - Chromium needs `--no-sandbox` inside this container (rootfs read-only +
   non-root + `--cap-drop=ALL`): acceptable, blast radius is one disposable run.
 
+## SSRF guard (host side)
+
+`crawl-fetch` pre-flights every URL before either rung: only `http`/`https`,
+no `user:pass@` userinfo, and every resolved address must be public (private,
+loopback, link-local, multicast, reserved and `169.254.169.254` are rejected).
+`--allow-private` lifts the address/name rules for local dev servers and host
+proxies; the scheme, credential and `metadata.google.internal` rules stay.
+
+Two deliberate limits, worth knowing before exposing this to untrusted input:
+
+- the check resolves DNS once, then the fetch resolves again — a hostile
+  resolver can flip the answer between the two (DNS rebinding). The container
+  additionally has no route to the host's loopback unless `--host-net` is set.
+- the DeepSeek Fetch rung runs server-side, so the guard's address rules do
+  not apply to *its* egress; it only sees approved http(s) URLs.
+
+Response bodies on the DeepSeek rung are capped at 4 MiB.
+
 ## crawl-env cheatsheet
 
 ```sh

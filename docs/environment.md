@@ -2,10 +2,10 @@
 
 | 变量 | 用途 | 必需 |
 |---|---|---|
-| `EXA_API_KEY` | Exa 语义检索 | 是 |
-| `BRAVE_API_KEY` | Brave 实时索引 | 是 |
+| `EXA_API_KEY` | Exa 语义检索 | 否，缺失即跳过 |
+| `BRAVE_API_KEY` | Brave 实时索引 | 否，缺失即跳过 |
 | `SERPER_API_KEY` | Serper Google SERP 桥（`/search`，`X-API-KEY`；2500 次一次性免费；付费 $1/千次起、6 个月有效；脚本每请求 ≤10 条 = 1 credit） | 否，缺失即跳过 |
-| `MCP_ANYSEARCH_API_KEY` | AnySearch 批量探测 | 是 |
+| `MCP_ANYSEARCH_API_KEY` | AnySearch 批量探测 | 否，缺失即跳过 |
 | `FIRECRAWL_API_KEY` | Firecrawl 实时爬取搜索（`/v2/search`，按计划扣 credits，实测约 2/次） | 否，缺失即跳过 |
 | `TAVILY_API_KEY` | Tavily 中文覆盖（API 直呼） | 否，失败跳过 |
 | `TAVILY_API_KEY_BACKUP` | Tavily 备用密钥；主键遇 432/429/401/402/403（限额耗尽类）自动切换 | 否 |
@@ -19,6 +19,13 @@
 | `ANSWER_MODEL` | `--answer` 本地答案模型（默认 `qwen3.5:9b`） | 否 |
 | `ANSWER_DS_MODEL` | `--answer deepseek` 的 chat 模型（默认 `deepseek-flash`，`thinking:disabled`） | 否 |
 | `CRAWL_PROXY` | 抓取容器出网代理（如 `http://127.0.0.1:7897`，需同时加 `--host-net`），`NO_PROXY="*"` 强制直连（优先级最高），其余回落 `HTTPS_PROXY` | 否 |
+| `AGG_SEARCH_CACHE_DIR` | 覆盖缓存根目录（默认 `~/.cache/agg-search`；结果缓存、冷却状态、页面缓存都在这里） | 否 |
+| `AGG_SEARCH_ENGINES` | 默认引擎列表（逗号分隔；显式 `--engines` 优先） | 否 |
+| `AGG_SEARCH_TOP_N` | 默认返回条数 | 否 |
+| `AGG_SEARCH_PER_ENGINE` | 每引擎召回条数 | 否 |
+| `AGG_SEARCH_SNIPPET_CHARS` | 输出摘要长度（80–2000） | 否 |
+| `AGG_SEARCH_FAST` | `1/true/yes` 默认开启 fast 召回 | 否 |
+| `AGG_SEARCH_NO_JINA` | `1/true/yes` 默认跳过精排 | 否 |
 
 来源：`~/.config/agent-env` 与 `~/.config/ai-keys.env` 的 `export`/`KEY=` 行（脚本自行解析）+ 进程 env。交互 TUI 自然继承；
 非交互 `opencode run`（脚本/cron）丢 env 时需显式注入。DeepSeek Search/Fetch 按成功请求计费（¥5/千次，QPS 各 5），
