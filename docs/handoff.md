@@ -110,3 +110,54 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install -c cursor --check   # 期望
 - [ ] `agg-search --show-config` 不出现任何密钥值，只有布尔。
 - [ ] GitHub Actions 最新两次 run 为 success；registry 最新版本 active 且与 PyPI 一致。
 - [ ] 如需改 `agent-env`：先 `cp -p` 备份，改完 `chmod 600`，并用 `env -u` 验证 CLI 从文件读到值。
+
+## 7. 过程文件：保留清单与清理规则
+
+本机**保留**（正常工作集）：
+
+| 保留 | 原因 |
+|---|---|
+| `~/projects/agg-search`（含 `.venv` 196K、`.git` 2.6M） | 唯一工作副本；`.venv` 是 editable 开发环境，已 gitignore |
+| `~/.cache/agg-search/` | 运行期缓存与反馈计数（产品数据，删除只会丢缓存） |
+| `~/.config/agg-search/weights.json` | 调优权重（`agg-search-tune` 产出） |
+| `~/.local/bin/mcp-publisher` (19.7M) | Registry 发布工具，刚需 |
+| `~/.config/agent-env` + `agent-env.bak-*` | 密钥与 CIDR；两份都是 600 |
+| `searxng` 容器（2026-09-19 创建） | 用户既有的本地搜索服务，**不是测试残留** |
+
+本轮**已删除**的过程垃圾（可复查确认不存在）：
+
+```
+/tmp/agentlab                  # 1.7G 隔离 agent 实验室（npm 全局前缀/缓存、CODEX_HOME、XDG、各 CLI）
+/tmp/venv-lead /tmp/venv-021 /tmp/venv-fetch /tmp/venv-filters
+/tmp/mcp-pub                   # 28M，安装 mcp-publisher 时的解压目录
+/tmp/domaintune /tmp/learn-cache /tmp/learn-config /tmp/fakehome*
+/tmp/reg.json /tmp/mcp-server.schema.json /tmp/times /tmp/t1 /tmp/http.log
+/tmp/testadd.py /tmp/agg_files.txt
+```
+
+隔离与清理规则（下一轮必须遵守）：
+
+1. 所有 agent/工具装进 `/tmp/<lab>`：独立 `HOME`、`XDG_CONFIG_HOME`、`XDG_DATA_HOME`、`XDG_CACHE_HOME`、`CODEX_HOME`、`npm_config_prefix`、`npm_config_cache`；**禁止** `npm i -g` 到真实前缀。
+2. 只测 CLI 客户端；GUI 只给配置/深链，不安装。
+3. 测试用容器一律 `--rm`；结束后 `docker ps` 只应看到既有的 `searxng`。
+4. 删临时目录前先 `pgrep -af` 确认没有残留进程；删后再 `ls -d /tmp/agentlab /tmp/venv-*` 复查。
+5. 任何时刻不得 `cat`/`echo`/提交 `~/.config/agent-env`、`~/.config/pypi-token`、`~/.config/mcp-publisher/token.json`；错误输出也不能带出它们的值。
+6. 不把测试用的环境变量（`AGG_SEARCH_*`、`HOME`、`XDG_*`）写进 shell 的持久配置或仓库文件。
+
+## 8. 下一阶段目标：门户隔离 + 领域强化（给下一个 agent 的任务书）
+
+现有基础：`profiles`（engines/weights/recency/snippet/primary/rerank_blend）、`catalog`（agent × profile 的入口）、反馈回路、`agg-search-tune`、MCP stdio/HTTP。
+
+要做的增量（按可验证性排序）：
+
+1. **门户（portal）抽象**：`portal = agent × domain`。每个 portal 是一个数据描述，至少包含
+   - `tools`：该门户暴露的 MCP 工具子集与**调用顺序**（例：academic 先 `search` 再 `fetch` 再 `answer`；code 先 `search` 再 `fetch`）；
+   - `prompts`：该领域的**内置提示词**（查询改写模板、答案模板、结果筛选提示），与通用模板分开；
+   - `dependencies`：所需引擎/密钥，缺失时如何降级（明确列出）；
+   - `profile`：绑定到现有 domain profile（引擎集合、权重、recency、blend）。
+   生成物：`portals.json`（机读）、`docs/portals.md`（人读）、`agg-search-install --portal <agent>.<domain>` 的入口。
+2. **领域提示词与工具顺序落地**：`search --profile` 已换引擎；下一步把 `expand`/`answer` 的 prompt 按 portal 覆盖（当前写死在代码里），并让 MCP 工具描述/instructions 按 portal 不同（同一个 server 名不能同时服务两种语义时，用独立 server 名，如 `agg-search-academic`）。
+3. **新增强机制（先评测再合并）**：候选包括按领域的时间窗/权威域先验、查询改写模板化、多查询融合的变体数按领域设定、结果内容级去重、fetch 前预取 top-1 的“读再答”流水线。每个机制要有对照实验（precision@3 或人工抽检 + 延迟/成本），只有达标才进默认路径。
+4. **不同 agent 的依赖/降级差异**：Claude Code 可能没有本地 ollama（`expand` 不可用）→ portal 声明 `dependencies`，缺依赖时自动退回无扩展路径并在 `engine_health` 标注；Codex/OpenCode 有本地模型时启用扩展。
+5. **门户级测试**：为每个新 portal 写离线测试（prompt 渲染、工具顺序、缺依赖降级），并在隔离环境里用真实 CLI 做一次端到端（按第 7 节规则），结果写进 `docs/agent-tests.md` 对应小节。
+6. **发布**：语义变化（新增 portal/默认行为变化）→ 升 minor；纯修复 → patch。发版按第 4 节，catalog/portals 文档一起更新。
