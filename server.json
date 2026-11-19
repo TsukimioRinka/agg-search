@@ -6,12 +6,12 @@
     "url": "https://github.com/TsukimioRinka/agg-search",
     "source": "github"
   },
-  "version": "0.4.1",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "agg-search",
-      "version": "0.4.1",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },
@@ -81,6 +81,18 @@
         {
           "name": "SEARXNG_URL",
           "description": "Self-hosted SearXNG base URL",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "AGG_SEARCH_PORTAL",
+          "description": "Portal preset (<agent>.<domain>, e.g. codex.academic)",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "AGG_SEARCH_PROFILE",
+          "description": "Domain profile override (general, academic, code, news)",
           "isRequired": false,
           "isSecret": false
         }

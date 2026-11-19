@@ -26,6 +26,7 @@
 | `AGG_SEARCH_CACHE_DIR` | 覆盖缓存根目录（默认 `~/.cache/agg-search`；结果缓存、冷却状态、页面缓存、反馈计数都在这里） | 否 |
 | `AGG_SEARCH_CONFIG_DIR` | 覆盖调优权重目录（默认 `~/.config/agg-search`，`weights.json` 在此） | 否 |
 | `AGG_SEARCH_PROFILE` | 默认领域画像：`general` / `academic` / `code` / `news`（显式 `--profile` 优先） | 否 |
+| `AGG_SEARCH_PORTAL` | 门户预设 `<agent>.<domain>`（绑定 server 名、工具子集/顺序、领域 prompt 与降级策略） | 否 |
 | `AGG_SEARCH_NO_LEARN` | `1/true/yes` 关闭反馈读写（等价 `--no-learn`） | 否 |
 | `AGG_SEARCH_ALLOW_PRIVATE` | `1/true/yes` 让抓取允许私网/回环目标（服务端策略；MCP 调用方无法逐次开启；云元数据地址始终拒绝） | 否 |
 | `AGG_SEARCH_ALLOW_CIDRS` | 逗号分隔的允许网段（TUN 代理的 `198.18.0.0/15` fake-IP 需要它；元数据地址不受影响） | 否 |

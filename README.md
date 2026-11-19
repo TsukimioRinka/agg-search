@@ -84,16 +84,20 @@ PYTHONPATH=src python3 -m agg_search.search "query"
 |---|---|
 | [docs/catalog.md](docs/catalog.md) | 13 家 Agent × 4 个领域画像的完整入口表 |
 | [catalog.json](catalog.json) | 同一份数据的机器可读版本（给脚本/目录站用） |
-| Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PROFILE` |
+| [docs/portals.md](docs/portals.md) | 52 个 `agent × domain` 门户隔离规格（工具子集/顺序、prompt、依赖与降级） |
+| [portals.json](portals.json) | 机器可读门户注册表（与 `catalog.json` 严格同步） |
+| Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PORTAL` / `AGG_SEARCH_PROFILE` |
 | Claude Code / Codex | 一条 `mcp add` 命令，含 `--env` |
-| 其他客户端 | `agg-search-install -c <client> --profile <profile> --write` |
-| 实测记录 | [docs/agent-tests.md](docs/agent-tests.md)：6 个 CLI 客户端的接入结果 |
+| 其他客户端 | `agg-search-install --portal <client>.<domain> --write` |
+| 实测记录 | [docs/agent-tests.md](docs/agent-tests.md)：6 个 CLI 客户端的门户隔离实测 |
 
 非 `general` 画像注册为独立的 server 名（`agg-search-academic`、`agg-search-code`、`agg-search-news`），可以和默认的 `agg-search` 并存。
 
 ```bash
+agg-search-install --portals --markdown   # 重新生成 docs/portals.md
+agg-search-install --portals              # 打印 portals.json
 agg-search-install --catalog --markdown   # 重新生成 docs/catalog.md
-agg-search-install --catalog              # 打印 JSON
+agg-search-install --catalog              # 打印 catalog.json
 ```
 
 ## 使用
@@ -130,12 +134,13 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 
 ## MCP server
 
-暴露两个工具：
+暴露工具按门户隔离（默认 `search` + `fetch`；`academic` 门户按 `search -> fetch -> answer` 暴露三件套）：
 
 | 工具 | 主要参数 | 说明 |
 |---|---|---|
-| `search` | `query`、`top_n`、`recency`、`engines`、`profile`、`include_domains`、`exclude_domains`、`snippet_chars`、`expand`、`answer`、`fast`、`budget_secs`、`engine_timeout`、`no_jina` | 并行召回 + RRF + 精排；返回文本内容 + `structuredContent` |
-| `fetch` | `urls`、`tier`、`out`、`text_limit`、`allow_private` | 分层抓取正文；每 URL 一条结果 |
+| `search` | `query`、`top_n`、`recency`、`engines`、`portal`、`profile`、`include_domains`、`exclude_domains`、`snippet_chars`、`expand`、`answer`、`answer_fetch`、`fast`、`budget_secs`、`engine_timeout`、`no_jina` | 并行召回 + 内容去重 + 权威先验 RRF + 精排；返回文本内容 + `structuredContent` |
+| `fetch` | `urls`、`tier`、`out`、`text_limit` | 分层抓取正文（SSRF 守卫由服务端环境变量控制）；每 URL 一条结果 |
+| `answer` | `query`、`sources`、`urls`、`mode`、`portal`、`profile` | 仅在 `academic` 门户暴露；读取摘要或抓取全文，按 Agent 回退顺序合成带引用回答 |
 
 协议行为：
 
@@ -211,7 +216,7 @@ uv venv && uv pip install -e .
 python3 -m unittest discover -s tests -v
 ```
 
-140+ 个离线测试：域名过滤、RRF、冷却分类、缓存键、SSRF 判定、安装器、MCP 协议面与 stdio/HTTP 端到端（不发起网络请求、不消耗额度）。CI 覆盖 Python 3.10–3.13 + ruff。
+220+ 个离线测试：门户隔离与降级、内容去重、权威先验、域名过滤、RRF、冷却分类、缓存键、SSRF 判定、安装器、MCP 协议面与 stdio/HTTP 端到端（不发起网络请求、不消耗额度）。CI 覆盖 Python 3.10–3.13 + ruff。
 
 ## 安全与隐私
 
@@ -230,7 +235,9 @@ python3 -m unittest discover -s tests -v
 | [docs/adapters.md](docs/adapters.md) | 13 家客户端的接入配置 |
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
 | [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
-| [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的隔离实测与清理记录 |
+| [docs/portals.md](docs/portals.md) | 52 个 `agent × domain` 门户规格、工具顺序与降级路径 |
+| [docs/benchmarks.md](docs/benchmarks.md) | 5 项增强机制的对照评测（18 领域 + 10 通用查询）与取舍依据 |
+| [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的门户隔离实测与清理记录 |
 | [docs/handoff.md](docs/handoff.md) | 交接：本机路径、凭据位置、逐层验证与发版流程 |
 | [docs/fetching.md](docs/fetching.md) | 分层抓取的梯子与容器 |
 | [docs/reranking.md](docs/reranking.md) | RRF 与 Jina 精排、参数扫描 |

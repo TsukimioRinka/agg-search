@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.0] - 2026-11-20
+
+Portal isolation (`agent × domain`), domain-tuned prompts and tool ordering,
+plus benchmarked fusion improvements.
+
+### Added
+
+- Portal registry (`agg_search.portals`, `portals.json`, `docs/portals.md`):
+  52 declarative `agent × domain` descriptors declaring isolated MCP server
+  names, exposed tool subsets and workflow order (`academic`: `search -> fetch ->
+  answer`; `code`/`news`/`general`: `search -> fetch`), domain-specific prompts,
+  dependencies and agent-aware fallback chains (`local -> deepseek` for
+  local-LLM agents vs `deepseek -> local` for cloud-first CLI/IDE agents).
+- `agg-search-install --portal <agent>.<domain>` (`--list-portals`,
+  `--portals [--markdown]`): generates and checks isolated portal entries;
+  `catalog.json` and `docs/catalog.md` now carry `AGG_SEARCH_PORTAL` alongside
+  `AGG_SEARCH_PROFILE`.
+- MCP portal isolation (`agg-search-mcp`, `agg-search-http`, `--portal` /
+  `AGG_SEARCH_PORTAL`): portal-scoped `initialize` (`serverInfo.name` and
+  `instructions`), ordered `tools/list`, JSON-RPC `-32602` rejection for tools
+  outside the portal subset, and the `answer` tool (supporting direct `sources`
+  or prefetched `urls`).
+- Content-level deduplication in `rrf_fuse` (`dedupe=True` by default,
+  `--no-dedupe` to disable): collapses `http`/`https`, `www.`, tracking query
+  parameters, arXiv `abs`/`pdf`/`html`/`vN`/`10.48550/arxiv.*` mirrors, and
+  substantive exact/near-exact duplicate results while merging engine provenance.
+- Soft domain authority priors in `profiles` (`academic`: `1.35`, `code`: `1.25`)
+  and opt-in read-then-answer `--answer-fetch N` (CLI) / `answer_fetch` (MCP
+  `search`).
+- Keyless fallback recovery after credential/cooldown filtering for portals,
+  recorded in `engine_health.degraded`.
+- `docs/benchmarks.md`: 18-query domain A/B + 10-query general regression
+  evaluations across all 5 enhancement candidates.
+
+### Changed
+
+- `expand_queries` and `answer_query` read domain-specific prompt templates from
+  `agg_search.portals` instead of hardcoded general strings, and `answer` uses
+  agent-ordered fallback (`answer_with_fallback`).
+- `code` profile `rerank_blend` tuned from `0.6` to `0.4` based on the 6-query
+  code benchmark (`5/18 -> 9/18` authoritative top-3 hits when combined with
+  authority priors and deduplication).
+- Rejected candidates kept out of default paths after evaluation: automatic
+  `--expand` stays `0` (opt-in; 2x-3x call cost + 9B hallucinations at
+  `expand=3`) and automatic `fetch` before `answer` stays opt-in (`--answer-fetch`,
+  due to container ladder latency on anti-bot sites).
+
 ## [0.4.1] - 2026-11-19
 
 Security release from an independent audit.
