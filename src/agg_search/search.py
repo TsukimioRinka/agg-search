@@ -395,6 +395,17 @@ def norm_url(u):
     return u.split("#", 1)[0].rstrip("/")
 
 
+# Zero-width and bidi-control characters hide injected instructions in page
+# text an agent is about to read (Trojan Source and friends); engine-supplied
+# titles/snippets are cleaned before they reach the model.
+_INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064"
+                        "\u2066-\u2069\ufeff]")
+
+
+def clean_text(text):
+    return _INVISIBLE.sub("", text or "")
+
+
 def eng_exa(q, n):
     key = getenv("EXA_API_KEY")
     if not key:
@@ -755,7 +766,9 @@ def rrf_fuse(results, top, weights=None, k=None, diversify=False):
             w = weights.get(eng, ENGINES.get(base, (None, 1.0))[1])
         for i, (u, t, s) in enumerate(rows):
             score[u] = score.get(u, 0.0) + w / (kk + i + 1)
-            m = meta.setdefault(u, {"title": t, "snippet": s, "engines": []})
+            m = meta.setdefault(u, {"title": clean_text(t),
+                                    "snippet": clean_text(s),
+                                    "engines": []})
             if base not in m["engines"]:
                 m["engines"].append(base)
     ordered = sorted(score, key=score.get, reverse=True)

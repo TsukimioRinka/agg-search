@@ -106,7 +106,18 @@ def getenv(key, default=None):
 
 
 def squash(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", strip_invisible(s or "")).strip()
+
+
+# Zero-width and bidi-control characters are the usual hiding places for
+# prompt-injection payloads (Trojan Source, "invisible" instructions). Page
+# text shown to an agent must not carry them.
+INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064"
+                       "\u2066-\u2069\ufeff]")
+
+
+def strip_invisible(text):
+    return INVISIBLE.sub("", text)
 
 
 def _non_public(ip):

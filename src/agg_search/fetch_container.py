@@ -23,8 +23,12 @@ BLOCK_MARKERS = (
 )
 
 
+INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064"
+                       "\u2066-\u2069\ufeff]")
+
+
 def squash(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", INVISIBLE.sub("", s or "")).strip()
 
 
 def needs_escalation(status, html, text):
