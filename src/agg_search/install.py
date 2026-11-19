@@ -2,8 +2,10 @@
 """Print or write the agg-search MCP registration for a given agent client.
 
 The server is a plain stdio process, so every client ends up with the same
-command; only the config file and its key names differ. `--print` (default)
-never touches disk, `--write` backs up and merges one server entry.
+command; only the config file, server name, environment variables and key names
+differ. `--print` (default) never touches disk, `--write` backs up and merges
+one server entry, and `--portal <agent>.<domain>` configures an isolated
+domain portal.
 """
 
 from __future__ import annotations
@@ -18,27 +20,28 @@ import time
 import urllib.parse
 
 try:  # package import (installed, `python -m agg_search.install`)
-    from . import profiles
+    from . import portals, profiles
 except ImportError:  # pragma: no cover - direct script execution
+    import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
 
 SERVER = "agg-search"
 DEFAULT_ARGS = ["--from", "agg-search", "agg-search-mcp"]
-HOME = os.path.expanduser("~")
 
 
 def _path(*parts):
-    return os.path.join(HOME, *parts)
+    return os.path.join("~", *parts)
 
 
 def _claude_desktop_path():
+    home = os.path.expanduser("~")
     if sys.platform == "darwin":
-        return _path("Library", "Application Support", "Claude",
-                     "claude_desktop_config.json")
-    if os.name == "nt":
-        return os.path.join(os.environ.get("APPDATA", HOME), "Claude",
+        return os.path.join(home, "Library", "Application Support", "Claude",
                             "claude_desktop_config.json")
-    return _path(".config", "Claude", "claude_desktop_config.json")
+    if os.name == "nt":
+        return os.path.join(os.environ.get("APPDATA", home), "Claude",
+                            "claude_desktop_config.json")
+    return os.path.join(home, ".config", "Claude", "claude_desktop_config.json")
 
 
 # client -> dict(mode, path, section, shell, extra, payload)
@@ -54,6 +57,7 @@ CLIENTS = {
     "claude-desktop": {
         "mode": "json",
         "path": _claude_desktop_path,
+        "portable_path": "~/.config/Claude/claude_desktop_config.json",
         "section": ("mcpServers",),
         "shape": "mcpServers",
     },
@@ -206,9 +210,10 @@ def _prune_backups(path, keep=5):
             pass
 
 
-def check_client(name, info, runtime):
+def check_client(name, info, runtime, server=None):
     """Report whether the client is actually wired up. Exit 0 only when the
     config parses, the entry exists and the runtime resolves."""
+    target = server or info.get("server") or SERVER
     problems = []
     if info.get("mode") != "json" or not info.get("path"):
         print("%s: no config file to inspect; %s"
@@ -230,10 +235,10 @@ def check_client(name, info, runtime):
                     node = doc
                     for key in info["section"]:
                         node = node[key]
-                    entry = node[SERVER]
+                    entry = node[target]
                 except (KeyError, TypeError):
                     problems.append("no %r entry under %s"
-                                    % (SERVER, ".".join(info["section"])))
+                                    % (target, ".".join(info["section"])))
                 else:
                     command = entry.get("command")
                     if isinstance(command, (list, tuple)):
@@ -256,18 +261,31 @@ def check_client(name, info, runtime):
     return 0
 
 
-def _resolve_path(spec, scope):
+def _resolve_path(spec, scope, expand=True):
     if callable(spec):
-        return spec()
-    if isinstance(spec, dict):
+        val = spec()
+    elif isinstance(spec, dict):
         chosen = spec.get(scope) if scope else None
         if chosen is None and scope == "user":
             raise SystemExit("this client has no user-level file; use "
                              "--scope project or register through its CLI")
         if chosen is None:
             raise SystemExit("this client needs --scope user or --scope project")
-        return chosen
-    return spec
+        val = chosen
+    else:
+        val = spec
+    return os.path.expanduser(val) if expand and isinstance(val, str) else val
+
+
+def _portable_path(spec):
+    if "portable_path" in spec:
+        return spec["portable_path"]
+    path = spec.get("path")
+    if isinstance(path, dict):
+        return path.get("user") or path.get("project")
+    if isinstance(path, str):
+        return path
+    return None
 
 
 def _expand_command(template, argv, entry=None, name=SERVER):
@@ -286,12 +304,58 @@ def _expand_command(template, argv, entry=None, name=SERVER):
     return out
 
 
+def _with_env_flags(command, env_flag, env):
+    if not env or not env_flag or "--" not in command:
+        return command
+    at = command.index("--")
+    pairs = []
+    for key, value in env.items():
+        pairs += [env_flag, "%s=%s" % (key, value)]
+    return command[:at] + pairs + command[at:]
+
+
+def _codex_toml(server, argv, env):
+    args_json = json.dumps(argv[1:], ensure_ascii=False)
+    lines = [
+        "[mcp_servers.%s]" % server,
+        "command = %s" % json.dumps(argv[0], ensure_ascii=False),
+        "args = %s" % args_json,
+    ]
+    if env:
+        pairs = ", ".join(
+            "%s = %s" % (k, json.dumps(v, ensure_ascii=False))
+            for k, v in env.items()
+        )
+        lines.append("env = { %s }" % pairs)
+    return "\n".join(lines) + "\n"
+
+
+def _continue_yaml(server, argv, env):
+    lines = [
+        "mcpServers:",
+        "  - name: %s" % server,
+        "    command: %s" % argv[0],
+        "    args:",
+    ]
+    for arg in argv[1:]:
+        lines.append("      - %s" % arg)
+    if env:
+        lines.append("    env:")
+        for key, value in env.items():
+            lines.append("      %s: %s" % (key, value))
+    else:
+        lines.append("    env: {}")
+    return "\n".join(lines) + "\n"
+
+
 def server_name(profile):
     return SERVER if profile == "general" else "%s-%s" % (SERVER, profile)
 
 
-def entry_env(profile):
+def entry_env(profile, portal_id=None):
     env = {}
+    if portal_id:
+        env["AGG_SEARCH_PORTAL"] = portal_id
     if profile != "general":
         env["AGG_SEARCH_PROFILE"] = profile
     return env
@@ -313,6 +377,35 @@ def vscode_deeplink(name, entry):
             % (urllib.parse.quote(name), blob))
 
 
+def _agent_install_summary(agent, spec, portal, argv):
+    """Build the install block shared by catalog() and portals_catalog()."""
+    env = dict(portal["env"])
+    name = portal["server_name"]
+    entry = payload(spec.get("shape", "mcpServers"), argv, env)
+    info = {
+        "mode": spec["mode"],
+        "server": name,
+        "env": env,
+        "entry": entry,
+    }
+    if spec.get("mode") == "command" and "command" in spec:
+        command = _with_env_flags(
+            _expand_command(spec["command"], argv, entry, name),
+            spec.get("env_flag"),
+            env,
+        )
+        info["command"] = " ".join(command)
+    elif spec.get("mode") == "json":
+        info["command"] = "agg-search-install --portal %s --write" % portal["id"]
+    else:
+        info["command"] = "agg-search-install --portal %s" % portal["id"]
+    if agent == "cursor":
+        info["deeplink"] = cursor_deeplink(name, entry)
+    elif agent == "vscode":
+        info["deeplink"] = vscode_deeplink(name, entry)
+    return info
+
+
 def catalog(argv=None):
     """Machine-readable matrix of every agent x every domain profile."""
     argv = list(argv or (["uvx"] + DEFAULT_ARGS))
@@ -320,27 +413,25 @@ def catalog(argv=None):
     for agent, spec in sorted(CLIENTS.items()):
         entries = []
         for profile in profiles.names():
-            env = entry_env(profile)
+            portal_id = "%s.%s" % (agent, profile)
+            portal = portals.load(portal_id)
+            env = dict(portal["env"])
             entry = payload(spec.get("shape", "mcpServers"), argv, env)
-            name = server_name(profile)
-            item = {"profile": profile, "name": name, "env": env,
-                    "entry": entry}
+            name = portal["server_name"]
+            item = {
+                "portal": portal_id,
+                "profile": profile,
+                "name": name,
+                "env": env,
+                "entry": entry,
+            }
             if spec.get("mode") == "command" and "command" in spec:
-                command = _expand_command(spec["command"], argv, entry, name)
-                flag = spec.get("env_flag")
-                if env and flag and "--" in command:
-                    at = command.index("--")
-                    pairs = []
-                    for key, value in env.items():
-                        pairs += [flag, "%s=%s" % (key, value)]
-                    command = command[:at] + pairs + command[at:]
-                    item["command"] = " ".join(command)
-                elif env:
-                    # this client takes env only through its config file
-                    item["command"] = ("agg-search-install -c %s --profile %s "
-                                       "--write" % (agent, profile))
-                else:
-                    item["command"] = " ".join(command)
+                command = _with_env_flags(
+                    _expand_command(spec["command"], argv, entry, name),
+                    spec.get("env_flag"),
+                    env,
+                )
+                item["command"] = " ".join(command)
             if agent == "cursor":
                 item["deeplink"] = cursor_deeplink(name, entry)
             elif agent == "vscode":
@@ -350,7 +441,10 @@ def catalog(argv=None):
                 if callable(path):
                     item["path"] = path()
                 elif isinstance(path, dict):
-                    item["path"] = path.get("user") or path.get("project")
+                    chosen = path.get("user") or path.get("project")
+                    item["path"] = os.path.expanduser(chosen) if chosen else None
+                elif isinstance(path, str):
+                    item["path"] = os.path.expanduser(path)
             entries.append(item)
         rows.append({"id": agent, "mode": spec["mode"],
                      "doc": spec.get("doc", ""), "entries": entries})
@@ -367,9 +461,11 @@ def catalog_markdown(data=None):
     lines = [
         "# 下载入口 — Agent × 领域",
         "",
-        "同一个 stdio server，不同 Agent 的注册方式不同；不同领域用 `AGG_SEARCH_PROFILE` "
-        "把引擎组合与权重钉死。下表由 `agg-search-install --catalog --markdown` 生成，"
-        "机器可读版本见仓库根目录的 [`catalog.json`](../catalog.json)。",
+        "同一个 stdio server，不同 Agent 的注册方式不同；不同领域用 `AGG_SEARCH_PORTAL` "
+        "与 `AGG_SEARCH_PROFILE` 把门户工具面、提示词和引擎权重钉死。下表由 "
+        "`agg-search-install --catalog --markdown` 生成，"
+        "机器可读版本见仓库根目录的 [`catalog.json`](../catalog.json)；"
+        "完整门户隔离定义见 [`portals.md`](portals.md) 与 [`portals.json`](../portals.json)。",
         "",
         "| profile | 含义 |",
         "|---|---|",
@@ -386,9 +482,9 @@ def catalog_markdown(data=None):
         elif item.get("command"):
             entry = "`%s`" % item["command"]
         elif row["mode"] == "snippet":
-            entry = "`agg-search-install -c %s`" % agent
+            entry = "`agg-search-install --portal %s.general`" % agent
         else:
-            entry = "`agg-search-install -c %s --write`" % agent
+            entry = "`agg-search-install --portal %s.general --write`" % agent
         lines.append("| %s | %s | %s |"
                      % (agent, row["mode"], entry))
     lines += ["", "## 按领域", "",
@@ -404,37 +500,155 @@ def catalog_markdown(data=None):
         codex = next(e for e in agents["codex"]["entries"]
                      if e["profile"] == profile)
         lines.append("| `%s` | [安装](%s) | [安装](%s) | `%s` | `%s` | "
-                     "`agg-search-install -c <client> --profile %s --write` |"
+                     "`agg-search-install --portal <client>.%s --write` |"
                      % (profile, cursor["deeplink"], vscode["deeplink"],
                         claude["command"], codex["command"], profile))
     lines += ["", "完整路径与 JSON/YAML 片段见 [adapters.md](adapters.md)；"
+                  "门户规格见 [portals.md](portals.md)；"
                   "领域画像与反馈回路见 [profiles.md](profiles.md)。"]
     return "\n".join(lines) + "\n"
 
 
-def describe(name, argv, env, scope):
+def portals_catalog(argv=None):
+    """Machine-readable registry of every ``agent.domain`` portal."""
+    argv = list(argv or (["uvx"] + DEFAULT_ARGS))
+    portal_map = {}
+    for pid in portals.portal_ids():
+        portal = portals.load(pid)
+        spec = CLIENTS[portal["agent"]]
+        install_info = _agent_install_summary(portal["agent"], spec, portal, argv)
+        p_path = _portable_path(spec)
+        if p_path:
+            install_info["path"] = p_path
+        if "section" in spec:
+            install_info["section"] = list(spec["section"])
+        record = dict(portal)
+        record["install"] = install_info
+        portal_map[pid] = record
+    return {
+        "schema_version": 1,
+        "agents": portals.agent_names(),
+        "domains": portals.domain_names(),
+        "portals": portal_map,
+    }
+
+
+def portals_markdown(data=None):
+    """Human-readable portal reference generated from :func:`portals_catalog`."""
+    data = data or portals_catalog()
+    portal_map = data["portals"]
+    lines = [
+        "# 门户隔离 — Portal (`agent × domain`)",
+        "",
+        "每个门户是 `agent × domain` 的纯数据描述：绑定固定 domain profile、"
+        "暴露独立的 MCP 工具子集与调用顺序、使用领域专属 prompt（查询改写 / 答案合成 / 筛选提示），"
+        "并声明依赖引擎、密钥与降级路径（无 per-agent 分支代码）。",
+        "",
+        "本文件由 `agg-search-install --portals --markdown` 生成，"
+        "机器可读版本见 [`portals.json`](../portals.json)；"
+        "客户端矩阵见 [`catalog.md`](catalog.md) / [`catalog.json`](../catalog.json)。",
+        "",
+        "## 按领域（工具面、顺序、默认窗与依赖）",
+        "",
+        "| 领域 | MCP server 名 | 工具子集与顺序 | 必需引擎（免 key） | 默认时效/参数 | 降级策略 |",
+        "|---|---|---|---|---|---|",
+    ]
+    for domain in data["domains"]:
+        sample = portal_map["%s.%s" % (data["agents"][0], domain)]
+        tools_str = " → ".join("`%s`" % t for t in sample["tools"])
+        req = ", ".join("`%s`" % e for e in sample["dependencies"]["required_engines"]) or "—"
+        dfl = sample["defaults"]
+        params = []
+        if dfl.get("recency"):
+            params.append("recency=`%s`" % dfl["recency"])
+        if dfl.get("top_n"):
+            params.append("top_n=%d" % dfl["top_n"])
+        if dfl.get("rerank_blend") is not None:
+            params.append("blend=%.1f" % dfl["rerank_blend"])
+        if dfl.get("snippet_chars"):
+            params.append("snippet=%d" % dfl["snippet_chars"])
+        param_str = ", ".join(params) or "balanced"
+        lines.append(
+            "| `%s` | `%s` | %s | %s | %s | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |"
+            % (domain, sample["server_name"], tools_str, req, param_str)
+        )
+
+    lines += [
+        "",
+        "## 按 Agent（本地 LLM 假设与回答回退顺序）",
+        "",
+        "| Agent | 注册类型 | 本地 Ollama | Answer 回退顺序 | 一行安装（示例 `academic`） |",
+        "|---|---|---|---|---|",
+    ]
+    for agent in data["agents"]:
+        row = portal_map["%s.academic" % agent]
+        llm = row["dependencies"]["llm"]
+        local_flag = "是" if llm["local_llm"] else "否（云端优先）"
+        order = " → ".join("`%s`" % m for m in llm["answer_order"])
+        inst = row["install"]
+        if inst.get("deeplink"):
+            entry = "[\u2b07 安装](%s) / `agg-search-install --portal %s --write`" % (
+                inst["deeplink"], row["id"])
+        else:
+            entry = "`%s`" % inst["command"]
+        lines.append("| `%s` | %s | %s | %s | %s |"
+                     % (agent, inst["mode"], local_flag, order, entry))
+
+    lines += [
+        "",
+        "## 全量门户命令索引（52 个 `agent.domain`）",
+        "",
+        "| Portal | Server 名 | 安装 / 写入命令 |",
+        "|---|---|---|",
+    ]
+    for pid in sorted(portal_map):
+        row = portal_map[pid]
+        lines.append("| `%s` | `%s` | `agg-search-install --portal %s%s` |"
+                     % (pid, row["server_name"], pid,
+                        " --write" if row["install"]["mode"] == "json" else ""))
+
+    lines += [
+        "",
+        "常用示例：`agg-search-install --portal codex.academic`、"
+        "`agg-search-install --portal claude-code.code`、"
+        "`agg-search-install --portal cursor.news --write`。",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def describe(name, argv, env, scope, server=SERVER):
     spec = CLIENTS[name]
     entry = payload(spec.get("shape", "mcpServers"), argv, env)
     mode = spec["mode"]
     if mode == "command" and "command" in spec:
-        return {"mode": "command",
-                "command": _expand_command(spec["command"], argv, entry)}
+        command = _with_env_flags(
+            _expand_command(spec["command"], argv, entry, server),
+            spec.get("env_flag"),
+            env,
+        )
+        out = {"mode": "command", "server": server, "env": env,
+               "entry": entry, "command": command}
+        if "toml" in spec:
+            out["toml"] = _codex_toml(server, argv, env)
+        return out
     if mode == "json":
         path = _resolve_path(spec["path"], scope)
         doc = {}
-        _section_view(doc, spec["section"])[SERVER] = entry
-        return {"mode": "json", "path": path, "scope": scope,
+        _section_view(doc, spec["section"])[server] = entry
+        return {"mode": "json", "server": server, "path": path, "scope": scope,
                 "config": doc, "section": list(spec["section"]),
                 "entry": entry,
                 "snippet": json.dumps(doc, indent=2, ensure_ascii=False)}
     if "toml" in spec:
-        return {"mode": "toml", "path": "~/.codex/config.toml",
-                "snippet": spec["toml"]}
+        return {"mode": "toml", "server": server,
+                "path": "~/.codex/config.toml",
+                "snippet": _codex_toml(server, argv, env)}
     if "yaml" in spec:
-        return {"mode": "yaml", "path": spec.get("path", ""),
-                "snippet": spec["yaml"]}
-    doc = {"mcpServers": {SERVER: entry}}
-    return {"mode": "json", "path": "", "config": doc,
+        return {"mode": "yaml", "server": server,
+                "path": _resolve_path(spec.get("path", ""), scope, expand=False),
+                "snippet": _continue_yaml(server, argv, env)}
+    doc = {"mcpServers": {server: entry}}
+    return {"mode": "json", "server": server, "path": "", "config": doc,
             "section": ["mcpServers"], "entry": entry,
             "snippet": json.dumps(doc, indent=2, ensure_ascii=False)}
 
@@ -445,7 +659,12 @@ def main(argv=None):
     ap.add_argument("--client", "-c", required=False,
                     choices=sorted(CLIENTS), default=None,
                     help="target client; --list shows them all")
+    ap.add_argument("--portal", default=None, metavar="AGENT.DOMAIN",
+                    help="portal ID (<agent>.<domain>, e.g. codex.academic); "
+                         "sets client, isolated server name and env")
     ap.add_argument("--list", action="store_true", help="list supported clients")
+    ap.add_argument("--list-portals", action="store_true",
+                    help="list all agent x domain portals")
     ap.add_argument("--print", dest="do_print", action="store_true",
                     default=True, help="print the snippet (default)")
     ap.add_argument("--json", dest="as_json", action="store_true",
@@ -463,8 +682,10 @@ def main(argv=None):
                     help="environment entry for the client config (repeatable)")
     ap.add_argument("--catalog", action="store_true",
                     help="print the agent x domain catalog as JSON")
+    ap.add_argument("--portals", action="store_true",
+                    help="print the full portals registry as JSON")
     ap.add_argument("--markdown", action="store_true",
-                    help="with --catalog, print docs/catalog.md instead")
+                    help="with --catalog or --portals, print Markdown docs")
     ap.add_argument("--check", action="store_true",
                     help="verify the client config exists, parses, holds the "
                          "server entry and that the runtime binary resolves")
@@ -473,11 +694,39 @@ def main(argv=None):
                          "(sets AGG_SEARCH_PROFILE in its env)")
     a = ap.parse_args(argv)
 
+    if a.portals:
+        data = portals_catalog()
+        if a.markdown:
+            sys.stdout.write(portals_markdown(data))
+        else:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
     if a.catalog:
         data = catalog()
-        print(catalog_markdown(data) if a.markdown
-              else json.dumps(data, ensure_ascii=False, indent=2))
+        if a.markdown:
+            sys.stdout.write(catalog_markdown(data))
+        else:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
+
+    if a.list_portals:
+        print("\n".join(portals.describe()))
+        return 0
+
+    portal = None
+    if a.portal:
+        try:
+            portal = portals.load(a.portal)
+        except portals.UnknownPortal as exc:
+            raise SystemExit(str(exc.args[0]))
+        if a.client and a.client != portal["agent"]:
+            raise SystemExit("--client %s conflicts with --portal %s"
+                             % (a.client, portal["id"]))
+        if a.profile and a.profile != portal["domain"]:
+            raise SystemExit("--profile %s conflicts with --portal %s"
+                             % (a.profile, portal["id"]))
+        a.client = portal["agent"]
 
     if a.list or not a.client:
         width = max(len(n) for n in CLIENTS)
@@ -489,34 +738,40 @@ def main(argv=None):
 
     argv_cmd = [a.command] + [x for x in a.args.split(",") if x]
     env = {}
-    if a.profile:
+    if portal:
+        env.update(portal["env"])
+    elif a.profile:
         env["AGG_SEARCH_PROFILE"] = a.profile
     for item in a.env:
         key, _, value = item.partition("=")
         if not key:
             raise SystemExit("--env expects KEY=VALUE, got %r" % item)
-        env[key] = value  # explicit --env wins over --profile
+        env[key] = value  # explicit --env wins over --portal/--profile
 
-    info = describe(a.client, argv_cmd, env, a.scope)
+    target_server = portal["server_name"] if portal else SERVER
+    info = describe(a.client, argv_cmd, env, a.scope, server=target_server)
+    if portal:
+        info["portal"] = portal["id"]
+        info["tools"] = list(portal["tools"])
     if a.as_json:
         print(json.dumps(info, ensure_ascii=False, indent=2))
         return 0
     if a.check:
-        return check_client(a.client, info, argv_cmd[0])
+        return check_client(a.client, info, argv_cmd[0], server=target_server)
     if a.write:
         if info.get("mode") != "json" or not info.get("path"):
             raise SystemExit("%s cannot be written automatically; %s"
                              % (a.client, CLIENTS[a.client].get(
                                  "doc", "paste the snippet from --print")))
-        path = write_config(info["path"], tuple(info["section"]), SERVER,
+        path = write_config(info["path"], tuple(info["section"]), target_server,
                             info["entry"])
-        print("wrote %s" % path)
+        print("wrote %s (%s)" % (path, target_server))
         return 0
     if info["mode"] == "command":
         print(" ".join(info["command"]))
-        if CLIENTS[a.client].get("toml"):
+        if info.get("toml"):
             print()
-            print(CLIENTS[a.client]["toml"])
+            print(info["toml"])
         return 0
     print(info["snippet"])
     return 0

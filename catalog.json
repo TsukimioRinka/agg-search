@@ -30,9 +30,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "antigravity.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "antigravity.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -43,14 +45,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "antigravity.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
-          }
+          },
+          "path": "/home/body/.gemini/config/mcp_config.json"
         },
         {
+          "portal": "antigravity.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "antigravity.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -61,14 +67,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "antigravity.code",
               "AGG_SEARCH_PROFILE": "code"
             }
-          }
+          },
+          "path": "/home/body/.gemini/config/mcp_config.json"
         },
         {
+          "portal": "antigravity.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "antigravity.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -76,13 +87,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
-          }
+            "env": {
+              "AGG_SEARCH_PORTAL": "antigravity.general"
+            }
+          },
+          "path": "/home/body/.gemini/config/mcp_config.json"
         },
         {
+          "portal": "antigravity.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "antigravity.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -93,9 +109,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "antigravity.news",
               "AGG_SEARCH_PROFILE": "news"
             }
-          }
+          },
+          "path": "/home/body/.gemini/config/mcp_config.json"
         }
       ]
     },
@@ -105,9 +123,11 @@
       "doc": "claude mcp add writes the user/project config itself",
       "entries": [
         {
+          "portal": "claude-code.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-code.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -118,15 +138,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-code.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "command": "claude mcp add --scope user agg-search-academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
+          "command": "claude mcp add --scope user agg-search-academic --env AGG_SEARCH_PORTAL=claude-code.academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "claude-code.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-code.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -137,15 +160,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-code.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "command": "claude mcp add --scope user agg-search-code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
+          "command": "claude mcp add --scope user agg-search-code --env AGG_SEARCH_PORTAL=claude-code.code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "claude-code.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "claude-code.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -153,14 +180,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "claude-code.general"
+            }
           },
-          "command": "claude mcp add --scope user agg-search -- uvx --from agg-search agg-search-mcp"
+          "command": "claude mcp add --scope user agg-search --env AGG_SEARCH_PORTAL=claude-code.general -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "claude-code.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-code.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -171,10 +202,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-code.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "command": "claude mcp add --scope user agg-search-news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
+          "command": "claude mcp add --scope user agg-search-news --env AGG_SEARCH_PORTAL=claude-code.news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
         }
       ]
     },
@@ -184,9 +216,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "claude-desktop.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-desktop.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -197,15 +231,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-desktop.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
           "path": "/home/body/.config/Claude/claude_desktop_config.json"
         },
         {
+          "portal": "claude-desktop.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-desktop.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -216,15 +253,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-desktop.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
           "path": "/home/body/.config/Claude/claude_desktop_config.json"
         },
         {
+          "portal": "claude-desktop.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "claude-desktop.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -232,14 +273,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "claude-desktop.general"
+            }
           },
           "path": "/home/body/.config/Claude/claude_desktop_config.json"
         },
         {
+          "portal": "claude-desktop.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "claude-desktop.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -250,6 +295,7 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "claude-desktop.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
@@ -263,9 +309,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "cline.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "cline.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -276,16 +324,20 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cline.academic",
               "AGG_SEARCH_PROFILE": "academic"
             },
             "disabled": false,
             "autoApprove": []
-          }
+          },
+          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
         },
         {
+          "portal": "cline.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "cline.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -296,16 +348,21 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cline.code",
               "AGG_SEARCH_PROFILE": "code"
             },
             "disabled": false,
             "autoApprove": []
-          }
+          },
+          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
         },
         {
+          "portal": "cline.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "cline.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -313,15 +370,20 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {},
+            "env": {
+              "AGG_SEARCH_PORTAL": "cline.general"
+            },
             "disabled": false,
             "autoApprove": []
-          }
+          },
+          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
         },
         {
+          "portal": "cline.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "cline.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -332,11 +394,13 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cline.news",
               "AGG_SEARCH_PROFILE": "news"
             },
             "disabled": false,
             "autoApprove": []
-          }
+          },
+          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
         }
       ]
     },
@@ -346,9 +410,11 @@
       "doc": "TOML also works: [mcp_servers.agg-search] in ~/.codex/config.toml",
       "entries": [
         {
+          "portal": "codex.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "codex.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -359,15 +425,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "codex.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "command": "codex mcp add agg-search-academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
+          "command": "codex mcp add agg-search-academic --env AGG_SEARCH_PORTAL=codex.academic --env AGG_SEARCH_PROFILE=academic -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "codex.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "codex.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -378,15 +447,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "codex.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "command": "codex mcp add agg-search-code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
+          "command": "codex mcp add agg-search-code --env AGG_SEARCH_PORTAL=codex.code --env AGG_SEARCH_PROFILE=code -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "codex.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "codex.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -394,14 +467,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "codex.general"
+            }
           },
-          "command": "codex mcp add agg-search -- uvx --from agg-search agg-search-mcp"
+          "command": "codex mcp add agg-search --env AGG_SEARCH_PORTAL=codex.general -- uvx --from agg-search agg-search-mcp"
         },
         {
+          "portal": "codex.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "codex.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -412,10 +489,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "codex.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "command": "codex mcp add agg-search-news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
+          "command": "codex mcp add agg-search-news --env AGG_SEARCH_PORTAL=codex.news --env AGG_SEARCH_PROFILE=news -- uvx --from agg-search agg-search-mcp"
         }
       ]
     },
@@ -425,9 +503,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "continue.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "continue.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -438,14 +518,17 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "continue.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           }
         },
         {
+          "portal": "continue.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "continue.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -456,14 +539,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "continue.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           }
         },
         {
+          "portal": "continue.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "continue.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -471,13 +558,17 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "continue.general"
+            }
           }
         },
         {
+          "portal": "continue.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "continue.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -488,6 +579,7 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "continue.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           }
@@ -500,9 +592,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "cursor.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "cursor.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -513,16 +607,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cursor.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-academic&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiYWNhZGVtaWMifX0%3D",
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-academic&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuYWNhZGVtaWMiLCAiQUdHX1NFQVJDSF9QUk9GSUxFIjogImFjYWRlbWljIn19",
           "path": "/home/body/.cursor/mcp.json"
         },
         {
+          "portal": "cursor.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "cursor.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -533,16 +630,20 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cursor.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-code&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiY29kZSJ9fQ%3D%3D",
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-code&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuY29kZSIsICJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiY29kZSJ9fQ%3D%3D",
           "path": "/home/body/.cursor/mcp.json"
         },
         {
+          "portal": "cursor.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "cursor.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -550,15 +651,19 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "cursor.general"
+            }
           },
-          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52Ijoge319",
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuZ2VuZXJhbCJ9fQ%3D%3D",
           "path": "/home/body/.cursor/mcp.json"
         },
         {
+          "portal": "cursor.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "cursor.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -569,10 +674,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "cursor.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-news&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BST0ZJTEUiOiAibmV3cyJ9fQ%3D%3D",
+          "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-news&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IubmV3cyIsICJBR0dfU0VBUkNIX1BST0ZJTEUiOiAibmV3cyJ9fQ%3D%3D",
           "path": "/home/body/.cursor/mcp.json"
         }
       ]
@@ -583,9 +689,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "gemini.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "gemini.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -596,16 +704,20 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "gemini.academic",
               "AGG_SEARCH_PROFILE": "academic"
             },
             "timeout": 30000,
             "trust": false
-          }
+          },
+          "path": "/home/body/.gemini/settings.json"
         },
         {
+          "portal": "gemini.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "gemini.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -616,16 +728,21 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "gemini.code",
               "AGG_SEARCH_PROFILE": "code"
             },
             "timeout": 30000,
             "trust": false
-          }
+          },
+          "path": "/home/body/.gemini/settings.json"
         },
         {
+          "portal": "gemini.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "gemini.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -633,15 +750,20 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {},
+            "env": {
+              "AGG_SEARCH_PORTAL": "gemini.general"
+            },
             "timeout": 30000,
             "trust": false
-          }
+          },
+          "path": "/home/body/.gemini/settings.json"
         },
         {
+          "portal": "gemini.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "gemini.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -652,11 +774,13 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "gemini.news",
               "AGG_SEARCH_PROFILE": "news"
             },
             "timeout": 30000,
             "trust": false
-          }
+          },
+          "path": "/home/body/.gemini/settings.json"
         }
       ]
     },
@@ -666,9 +790,11 @@
       "doc": "any client that reads mcpServers",
       "entries": [
         {
+          "portal": "generic.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "generic.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -679,14 +805,17 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "generic.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           }
         },
         {
+          "portal": "generic.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "generic.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -697,14 +826,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "generic.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           }
         },
         {
+          "portal": "generic.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "generic.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -712,13 +845,17 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "generic.general"
+            }
           }
         },
         {
+          "portal": "generic.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "generic.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -729,6 +866,7 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "generic.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           }
@@ -741,9 +879,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "opencode.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "opencode.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -755,15 +895,18 @@
               "agg-search-mcp"
             ],
             "environment": {
+              "AGG_SEARCH_PORTAL": "opencode.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
           "path": "/home/body/.config/opencode/opencode.json"
         },
         {
+          "portal": "opencode.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "opencode.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -775,15 +918,19 @@
               "agg-search-mcp"
             ],
             "environment": {
+              "AGG_SEARCH_PORTAL": "opencode.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
           "path": "/home/body/.config/opencode/opencode.json"
         },
         {
+          "portal": "opencode.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "opencode.general"
+          },
           "entry": {
             "type": "local",
             "command": [
@@ -792,14 +939,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "environment": {}
+            "environment": {
+              "AGG_SEARCH_PORTAL": "opencode.general"
+            }
           },
           "path": "/home/body/.config/opencode/opencode.json"
         },
         {
+          "portal": "opencode.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "opencode.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -811,6 +962,7 @@
               "agg-search-mcp"
             ],
             "environment": {
+              "AGG_SEARCH_PORTAL": "opencode.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
@@ -824,9 +976,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "vscode.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "vscode.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -838,16 +992,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "vscode.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-academic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22academic%22%7D%7D",
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-academic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.academic%22%2C%20%22AGG_SEARCH_PROFILE%22%3A%20%22academic%22%7D%7D",
           "path": ".vscode/mcp.json"
         },
         {
+          "portal": "vscode.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "vscode.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -859,16 +1016,20 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "vscode.code",
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-code&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22code%22%7D%7D",
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-code&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.code%22%2C%20%22AGG_SEARCH_PROFILE%22%3A%20%22code%22%7D%7D",
           "path": ".vscode/mcp.json"
         },
         {
+          "portal": "vscode.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "vscode.general"
+          },
           "entry": {
             "type": "stdio",
             "command": "uvx",
@@ -877,15 +1038,19 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
+            "env": {
+              "AGG_SEARCH_PORTAL": "vscode.general"
+            }
           },
-          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%7D%7D",
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.general%22%7D%7D",
           "path": ".vscode/mcp.json"
         },
         {
+          "portal": "vscode.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "vscode.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -897,10 +1062,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "vscode.news",
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-news&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PROFILE%22%3A%20%22news%22%7D%7D",
+          "deeplink": "https://vscode.dev/redirect/mcp/install?name=agg-search-news&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.news%22%2C%20%22AGG_SEARCH_PROFILE%22%3A%20%22news%22%7D%7D",
           "path": ".vscode/mcp.json"
         }
       ]
@@ -911,9 +1077,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "windsurf.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "windsurf.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -924,14 +1092,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "windsurf.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
-          }
+          },
+          "path": "/home/body/.codeium/windsurf/mcp_config.json"
         },
         {
+          "portal": "windsurf.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "windsurf.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -942,14 +1114,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "windsurf.code",
               "AGG_SEARCH_PROFILE": "code"
             }
-          }
+          },
+          "path": "/home/body/.codeium/windsurf/mcp_config.json"
         },
         {
+          "portal": "windsurf.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "windsurf.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -957,13 +1134,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
-          }
+            "env": {
+              "AGG_SEARCH_PORTAL": "windsurf.general"
+            }
+          },
+          "path": "/home/body/.codeium/windsurf/mcp_config.json"
         },
         {
+          "portal": "windsurf.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "windsurf.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -974,9 +1156,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "windsurf.news",
               "AGG_SEARCH_PROFILE": "news"
             }
-          }
+          },
+          "path": "/home/body/.codeium/windsurf/mcp_config.json"
         }
       ]
     },
@@ -986,9 +1170,11 @@
       "doc": "",
       "entries": [
         {
+          "portal": "zed.academic",
           "profile": "academic",
           "name": "agg-search-academic",
           "env": {
+            "AGG_SEARCH_PORTAL": "zed.academic",
             "AGG_SEARCH_PROFILE": "academic"
           },
           "entry": {
@@ -999,14 +1185,18 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "zed.academic",
               "AGG_SEARCH_PROFILE": "academic"
             }
-          }
+          },
+          "path": "/home/body/.config/zed/settings.json"
         },
         {
+          "portal": "zed.code",
           "profile": "code",
           "name": "agg-search-code",
           "env": {
+            "AGG_SEARCH_PORTAL": "zed.code",
             "AGG_SEARCH_PROFILE": "code"
           },
           "entry": {
@@ -1017,14 +1207,19 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "zed.code",
               "AGG_SEARCH_PROFILE": "code"
             }
-          }
+          },
+          "path": "/home/body/.config/zed/settings.json"
         },
         {
+          "portal": "zed.general",
           "profile": "general",
           "name": "agg-search",
-          "env": {},
+          "env": {
+            "AGG_SEARCH_PORTAL": "zed.general"
+          },
           "entry": {
             "command": "uvx",
             "args": [
@@ -1032,13 +1227,18 @@
               "agg-search",
               "agg-search-mcp"
             ],
-            "env": {}
-          }
+            "env": {
+              "AGG_SEARCH_PORTAL": "zed.general"
+            }
+          },
+          "path": "/home/body/.config/zed/settings.json"
         },
         {
+          "portal": "zed.news",
           "profile": "news",
           "name": "agg-search-news",
           "env": {
+            "AGG_SEARCH_PORTAL": "zed.news",
             "AGG_SEARCH_PROFILE": "news"
           },
           "entry": {
@@ -1049,9 +1249,11 @@
               "agg-search-mcp"
             ],
             "env": {
+              "AGG_SEARCH_PORTAL": "zed.news",
               "AGG_SEARCH_PROFILE": "news"
             }
-          }
+          },
+          "path": "/home/body/.config/zed/settings.json"
         }
       ]
     }
