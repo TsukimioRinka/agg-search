@@ -143,11 +143,15 @@ def save_cooldown(state):
 
 
 def cache_key(query, engines, recency, per_engine, rrf_top, top_n, no_jina,
-              expand, diversify, fast=False, budget_secs=30.0, min_sources=0):
+              expand, diversify, fast=False, budget_secs=30.0, min_sources=0,
+              include_domains=(), exclude_domains=(), snippet_chars=400):
     parts = [query, ",".join(sorted(engines)), recency or "",
              str(per_engine), str(rrf_top), str(top_n), str(bool(no_jina)),
              str(expand), str(bool(diversify)),
              "fast" if fast else "full", str(budget_secs), str(min_sources),
+             ",".join(sorted(parse_domains(include_domains))),
+             ",".join(sorted(parse_domains(exclude_domains))),
+             str(clamp_snippet_chars(snippet_chars)),
              getenv("JINA_RERANK_MODEL", JINA_MODELS[0]),
              getenv("SEARXNG_URL", "http://127.0.0.1:8080"),
              getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")]
@@ -208,6 +212,99 @@ def domain_of(url):
         return host
     last2 = ".".join(parts[-2:])
     return ".".join(parts[-3:]) if last2 in _MULTI_SUFFIX else last2
+
+
+def parse_domains(value):
+    """Normalize a comma string (or iterable) of domain rules.
+    Lowercased, whitespace-stripped, empty rules dropped, order kept."""
+    if isinstance(value, str):
+        raw = value.split(",")
+    else:
+        raw = list(value or ())
+    out = []
+    for item in raw:
+        rule = str(item).strip().lower()
+        if rule.strip(".") and rule not in out:
+            out.append(rule)
+    return tuple(out)
+
+
+def domain_matches_rule(host, rule):
+    """True when `host` equals `rule` or is a subdomain of it.
+    Case-insensitive; leading dots are ignored, so `.edu` matches any host
+    ending in `.edu` and `example.com` also matches its subdomains.
+    Empty or dot-only rules never match."""
+    h = (host or "").strip().lower().strip(".")
+    r = (rule or "").strip().lower().strip(".")
+    if not h or not r:
+        return False
+    return h == r or h.endswith("." + r)
+
+
+def _filter_host(url):
+    """Host of a result URL for rule matching; '' when it has none."""
+    u = (url or "").strip()
+    if not u:
+        return ""
+    try:
+        host = urllib.parse.urlsplit(u).hostname
+        if not host:  # schemeless "example.com/path"
+            host = urllib.parse.urlsplit("//" + u).hostname
+    except ValueError:
+        host = None
+    return (host or "").strip(".").lower()
+
+
+def filter_rows(rows, include, exclude):
+    """Apply domain rules to (url, title, snippet) rows.
+    An empty include list means no allowlist restriction; otherwise a host
+    must match at least one rule. Exclude always wins over include.
+    Returns (kept_rows, removed_count)."""
+    inc, exc = parse_domains(include), parse_domains(exclude)
+    if not inc and not exc:
+        return list(rows), 0
+    kept, removed = [], 0
+    for row in rows:
+        host = _filter_host(row[0])
+        if (any(domain_matches_rule(host, r) for r in exc)
+                or (inc and not any(domain_matches_rule(host, r)
+                                    for r in inc))):
+            removed += 1
+        else:
+            kept.append(row)
+    return kept, removed
+
+
+def apply_domain_filter(results, include, exclude):
+    """Filter every engine/variant row list before fusion; cache hits are
+    filtered by the same call so stale data honours the current flags.
+    Returns (filtered_results, {engine: removed}) with `engine#i` variant
+    keys folded into the base engine name; a no-op without rules."""
+    inc, exc = parse_domains(include), parse_domains(exclude)
+    if not inc and not exc:
+        return dict(results), {}
+    out, counts = {}, {}
+    for key, rows in results.items():
+        kept, removed = filter_rows(rows, inc, exc)
+        if removed:
+            base = key.split("#", 1)[0]
+            counts[base] = counts.get(base, 0) + removed
+        if kept:
+            out[key] = kept
+    return out, counts
+
+
+def clamp_snippet_chars(n):
+    """Clamp --snippet-chars into the supported 80..2000 window."""
+    try:
+        return max(80, min(2000, int(n)))
+    except (TypeError, ValueError):
+        return 400
+
+
+def clip_snippet(text, n):
+    """Truncate a snippet for final rendering to `n` chars."""
+    return (text or "")[:n]
 
 
 def diversify_ranked(ranked):
@@ -743,6 +840,15 @@ def main():
                     help="bypass failure cooldowns (harness record must use this)")
     ap.add_argument("--no-diversify", action="store_true",
                     help="disable eTLD+1 diversity interleave before Jina")
+    ap.add_argument("--include-domains", default="",
+                    help="comma-separated host/suffix allowlist, applied per "
+                         "engine before fusion (arxiv.org, .edu)")
+    ap.add_argument("--exclude-domains", default="",
+                    help="comma-separated host/suffix blocklist; wins over "
+                         "--include-domains")
+    ap.add_argument("--snippet-chars", type=int, default=400,
+                    help="rendered snippet length in output, clamped 80..2000 "
+                         "(default 400)")
     a = ap.parse_args()
     req_names = [e.strip() for e in a.engines.split(",") if e.strip()]
     unknown = [e for e in req_names if e not in ENGINES]
@@ -754,6 +860,9 @@ def main():
         sys.exit("no valid engines in --engines (valid: %s)"
                  % ",".join(ENGINES))
     diversify = not a.no_diversify
+    include_domains = parse_domains(a.include_domains)
+    exclude_domains = parse_domains(a.exclude_domains)
+    snippet_chars = clamp_snippet_chars(a.snippet_chars)
     fast_min_sources = (a.min_sources if a.min_sources is not None
                         else (2 if a.fast else 0))
     use_cache = not a.no_cache
@@ -799,7 +908,10 @@ def main():
     ckey = cache_key(a.query, engines, a.recency, a.per_engine, a.rrf_top,
                      a.top_n, a.no_jina, a.expand, diversify,
                      fast=a.fast, budget_secs=a.budget_secs,
-                     min_sources=fast_min_sources)
+                     min_sources=fast_min_sources,
+                     include_domains=include_domains,
+                     exclude_domains=exclude_domains,
+                     snippet_chars=snippet_chars)
     cached = False
     results, recall_status, fast_note = {}, {}, ""
     if use_cache and len(queries) == 1 and not a.answer:
@@ -830,6 +942,10 @@ def main():
                            "status": recall_status,
                            "searxng_unresponsive": LAST_SEARXNG_UNRESPONSIVE}
             save_cache(store)
+    # domain filter: every engine/variant list, cache hits included (the
+    # cache stays raw recall), always before RRF so filtered URLs never leak
+    results, filtered = apply_domain_filter(results, include_domains,
+                                            exclude_domains)
     status.update(recall_status)
     # cooldown persistence: single writer here, never in workers (MF3)
     if use_cooldown and not cached:
@@ -840,7 +956,7 @@ def main():
             if ttl > 0:
                 cooldown[e] = now + ttl
         save_cooldown(cooldown)  # single writer; also prunes expired entries
-    if not results:
+    if not results and not filtered:
         if any(s.startswith("ok") for s in status.values()):
             sys.exit("no results (engines healthy, query too narrow): %s"
                      % json.dumps(status))
@@ -873,6 +989,11 @@ def main():
 
     health = {"cached": cached, "diversify": diversify,
               "distinct_domains": distinct_domains}
+    if include_domains or exclude_domains:
+        health["domain_filter"] = {"include": list(include_domains),
+                                   "exclude": list(exclude_domains)}
+    if filtered:
+        health["filtered"] = filtered
     if LAST_SEARXNG_UNRESPONSIVE:
         health["searxng_unresponsive"] = LAST_SEARXNG_UNRESPONSIVE
     if fast_note:
@@ -891,7 +1012,8 @@ def main():
             "engine_health": health,
             "results": [
                 {"rank": i, "title": m["title"] or u, "url": u,
-                 "snippet": m["snippet"], "engines": m["engines"],
+                 "snippet": clip_snippet(m["snippet"], snippet_chars),
+                 "engines": m["engines"],
                  "rrf": round(sc, 6)}
                 for i, (u, sc, m) in enumerate(ranked, 1)],
         }, ensure_ascii=False))
@@ -901,6 +1023,11 @@ def main():
     out.append("engines: " + "; ".join("%s=%s" % kv for kv in status.items()))
     if cached:
         out.append("cache: hit (5min TTL)")
+    if filtered:
+        out.append("domain filter: %d removed (%s)"
+                   % (sum(filtered.values()),
+                      ", ".join("%s=%d" % kv
+                                for kv in sorted(filtered.items()))))
     if fast_note:
         out.append("recall: " + fast_note)
     if LAST_SEARXNG_UNRESPONSIVE:
@@ -921,7 +1048,7 @@ def main():
         out.append("%d. [%s](%s) — via %s (rrf %.4f)"
                    % (i, m["title"] or u, u, "+".join(m["engines"]), sc))
         if m["snippet"]:
-            out.append("   %s" % m["snippet"][:300])
+            out.append("   %s" % clip_snippet(m["snippet"], snippet_chars))
     print("\n".join(out))
 
 
