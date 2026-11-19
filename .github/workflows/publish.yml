@@ -28,6 +28,11 @@ jobs:
   pypi:
     needs: build
     runs-on: ubuntu-latest
+    # OIDC publishing only works once a matching trusted publisher exists on
+    # PyPI for this repository and the `pypi` environment. Set the
+    # PYPI_PUBLISH repository variable to "true" after configuring it;
+    # until then the job is skipped instead of failing on every release.
+    if: vars.PYPI_PUBLISH == 'true'
     environment: pypi
     permissions:
       id-token: write

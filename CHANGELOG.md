@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.2] - 2026-11-19
+
+### Fixed
+
+- The MCP `initialize` handshake reports the installed package version instead
+  of a hardcoded `0.1.0`.
+
+## [0.1.1] - 2026-11-19
+
+Registry packaging fix.
+
+### Fixed
+
+- `server.json` resolves the MCP server as `uvx --from agg-search
+  agg-search-mcp`; the previous form ran the search CLI and passed
+  `agg-search-mcp` as its query.
+- The PyPI README carries the `mcp-name` marker the official MCP registry
+  requires to verify package ownership.
+
 ## [0.1.0] - 2026-11-19
 
 First public release.

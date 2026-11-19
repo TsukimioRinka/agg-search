@@ -128,3 +128,5 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ## License
 
 MIT
+
+<!-- mcp-name: io.github.TsukimioRinka/agg-search -->

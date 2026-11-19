@@ -18,9 +18,19 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from importlib.metadata import PackageNotFoundError, version as _dist_version
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_INFO = {"name": "agg-search", "version": "0.1.0"}
+
+
+def _server_version() -> str:
+    try:
+        return _dist_version("agg-search")
+    except PackageNotFoundError:
+        return "0.0.0+source"
+
+
+SERVER_INFO = {"name": "agg-search", "version": _server_version()}
 
 SEARCH_SCHEMA = {
     "type": "object",
