@@ -48,9 +48,10 @@ import urllib.parse
 import urllib.request
 
 try:  # package import (installed, `python -m agg_search.search`)
-    from . import learn, profiles
+    from . import learn, portals, profiles
 except ImportError:  # pragma: no cover - direct script execution
     import learn  # type: ignore[no-redef]
+    import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
 
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
@@ -782,17 +783,15 @@ def recall(query, n, engines, recency):
     return results, status
 
 
-def expand_queries(q, n_variants):
+def expand_queries(q, n_variants, prompt_template=None):
     """Rewrite the query into n_variants-1 alternatives via local ollama
     (native API, thinking disabled — the OpenAI-compat endpoint ignores
     `think` and burns the budget on reasoning). Returns (variants, note)."""
     base = getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
     model = getenv("EXPAND_MODEL", "qwen3.5:9b")
     want = n_variants - 1
-    prompt = ("Generate %d alternative web-search queries for the query "
-              "below. One query per line, no numbering, no explanations, "
-              "keep the original language and key entities.\n\nQuery: %s"
-              % (want, q))
+    template = prompt_template or portals.domain_prompts("general")["expand"]
+    prompt = portals.render_prompt(template, count=want, query=q)
     try:
         d = http_json(base + "/api/chat", method="POST",
                       body={"model": model, "stream": False, "think": False,
@@ -1021,18 +1020,23 @@ def _blend_order(scored, total, blend):
                                  reverse=True)]
 
 
-def answer_query(query, ranked, mode):
+def answer_query(query, ranked, mode, prompt_template=None,
+                 fetched_texts=None):
     """Synthesize a cited answer from the top results.
     mode: 'local' = ollama (free) | 'deepseek' = chat API (token-billed).
     Returns (text, note); best-effort, never blocks the result list."""
     ctx = []
+    fetched = fetched_texts or {}
     for i, (u, _sc, m) in enumerate(ranked[:8], 1):
+        full = fetched.get(u)
+        body = full if full else (m.get("snippet") or "")
+        limit = 2500 if full else 300
         ctx.append("[%d] %s\n%s\n%s"
-                   % (i, m["title"] or u, u, (m["snippet"] or "")[:300]))
-    prompt = ("Answer the query using ONLY the search results below. Cite "
-              "sources as [n]. Be concise. If the results are insufficient, "
-              "say so. Answer in the query's language.\n\nQuery: %s\n\n"
-              "Results:\n%s" % (query, "\n\n".join(ctx)))
+                   % (i, clean_text(m.get("title") or u), u,
+                      clean_text(body)[:limit]))
+    template = prompt_template or portals.domain_prompts("general")["answer"]
+    prompt = portals.render_prompt(template, query=query,
+                                   results="\n\n".join(ctx))
     try:
         if mode == "deepseek":
             base = getenv("DEEPSEEK_BASE_URL",
@@ -1063,6 +1067,39 @@ def answer_query(query, ranked, mode):
     except Exception as e:  # noqa: BLE001 — answer layer is best-effort
         return None, "answer failed (%s: %s), skipped" % (
             type(e).__name__, e)
+
+
+def answer_with_fallback(query, ranked, mode="auto", prompt_template=None,
+                         fallback_order=("local", "deepseek"),
+                         fetched_texts=None):
+    """Run answer synthesis with portal fallback ordering.
+
+    Returns (text, note, mode_used, degraded_list).
+    """
+    degraded = []
+    if mode in ("local", "deepseek"):
+        text, note = answer_query(
+            query, ranked, mode, prompt_template=prompt_template,
+            fetched_texts=fetched_texts)
+        if text:
+            return text, note or "", mode, degraded
+        if note:
+            degraded.append(note)
+        return None, note or "answer skipped", None, degraded
+
+    for candidate in fallback_order or ("local", "deepseek"):
+        text, note = answer_query(
+            query, ranked, candidate, prompt_template=prompt_template,
+            fetched_texts=fetched_texts)
+        if text:
+            used_note = ""
+            if degraded:
+                used_note = "answer fallback to %s (%s)" % (
+                    candidate, "; ".join(degraded))
+            return text, used_note, candidate, degraded
+        if note:
+            degraded.append("%s: %s" % (candidate, note))
+    return None, ("; ".join(degraded) or "answer skipped"), None, degraded
 
 
 def _env_int(name):
@@ -1123,7 +1160,8 @@ def apply_env_defaults(a):
     return applied
 
 
-def show_config(a, profile_name="general", profile=None, use_learn=True):
+def show_config(a, profile_name="general", profile=None, use_learn=True,
+                portal=None):
     """Effective settings for bug reports: credentials as booleans only.
 
     Every credential probe is `missing_credential(...) is None`; no key
@@ -1134,8 +1172,11 @@ def show_config(a, profile_name="general", profile=None, use_learn=True):
     learned = learn.load_multipliers(profile_name) if use_learn else {}
     for engine, mult in learned.items():
         weights[engine] = round(weights.get(engine, 1.0) * float(mult), 3)
-    return {
+    out = {
+        "portal": portal["id"] if portal else None,
         "profile": profile_name,
+        "prompts_domain": profile_name,
+        "tools": list(portal["tools"]) if portal else ["search", "fetch"],
         "primary": list((profile or {}).get("primary") or []),
         "rerank_blend": (profile or {}).get("rerank_blend"),
         "engines": engines,
@@ -1161,6 +1202,65 @@ def show_config(a, profile_name="general", profile=None, use_learn=True):
         "answer": a.answer,
         "credentials": {e: missing_credential(e) is None for e in engines},
     }
+    if portal:
+        out["dependencies"] = portals.probe_dependencies(
+            portal, lambda k: bool(getenv(k)), ollama_ok=None)
+    return out
+
+
+def _run_answer_sources(path_or_dash, portal, profile_name, prompts,
+                        fallback_order, cli_mode=None):
+    """Synthesize a cited answer directly from provided JSON sources."""
+    try:
+        if path_or_dash == "-":
+            raw = sys.stdin.read()
+        else:
+            with open(path_or_dash, encoding="utf-8") as f:
+                raw = f.read()
+        payload = json.loads(raw)
+    except (OSError, ValueError) as exc:
+        sys.exit("invalid --answer-sources payload: %s" % exc)
+    if not isinstance(payload, dict):
+        sys.exit("--answer-sources expects a JSON object")
+    query = clean_text(str(payload.get("query") or "")).strip()
+    if not query:
+        sys.exit("--answer-sources payload requires 'query'")
+    sources = payload.get("sources") or []
+    if not isinstance(sources, list) or not sources:
+        sys.exit("--answer-sources payload requires non-empty 'sources'")
+
+    ranked = []
+    fetched_texts = {}
+    for i, item in enumerate(sources[:8]):
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "source://%d" % (i + 1))
+        title = clean_text(str(item.get("title") or url))
+        body = clean_text(str(item.get("text") or item.get("snippet") or ""))
+        if body:
+            fetched_texts[url] = body
+        ranked.append((url, 1.0 / (i + 1), {
+            "title": title, "snippet": body[:400], "engines": ["sources"],
+        }))
+    if not ranked:
+        sys.exit("--answer-sources found no usable source entries")
+
+    mode = cli_mode or str(payload.get("mode") or "auto")
+    if mode not in ("auto", "local", "deepseek"):
+        mode = "auto"
+    text, note, mode_used, degraded = answer_with_fallback(
+        query, ranked, mode=mode, prompt_template=prompts["answer"],
+        fallback_order=fallback_order, fetched_texts=fetched_texts)
+    print(json.dumps({
+        "query": query,
+        "portal": portal["id"] if portal else None,
+        "profile": profile_name,
+        "answer": text,
+        "mode_used": mode_used,
+        "note": note or None,
+        "degraded": degraded,
+        "sources_used": len(ranked),
+    }, ensure_ascii=False))
 
 
 def main():
@@ -1185,10 +1285,14 @@ def main():
     ap.add_argument("--expand", type=int, default=0, metavar="N",
                     help="query-expansion fan-out: N>=2 runs N-1 local-LLM "
                          "rewrites as extra recall paths (RAG-Fusion)")
-    ap.add_argument("--answer", nargs="?", const="local", default=None,
-                    choices=["local", "deepseek"], metavar="local|deepseek",
+    ap.add_argument("--answer", nargs="?", const="auto", default=None,
+                    choices=["auto", "local", "deepseek"],
+                    metavar="auto|local|deepseek",
                     help="synthesize a cited answer from the top results "
-                         "(bare flag = local ollama, free)")
+                         "(bare flag = portal order, local ollama first)")
+    ap.add_argument("--answer-sources", default=None, metavar="PATH|-",
+                    help="synthesize an answer from a JSON {query, sources} "
+                         "payload (used by the portal `answer` MCP tool)")
     ap.add_argument("--json", action="store_true", dest="json_out",
                     help="machine-readable JSON output instead of markdown")
     ap.add_argument("--fast", action="store_true",
@@ -1230,6 +1334,11 @@ def main():
                          % ", ".join(profiles.names()))
     ap.add_argument("--list-profiles", action="store_true",
                     help="print the built-in domain profiles and exit")
+    ap.add_argument("--portal", default=None, metavar="AGENT.DOMAIN",
+                    help="portal preset binding agent + domain prompts/tools "
+                         "(env AGG_SEARCH_PORTAL)")
+    ap.add_argument("--list-portals", action="store_true",
+                    help="print available portals and exit")
     ap.add_argument("--no-learn", action="store_true",
                     help="do not read or record the local surfaced/used "
                          "feedback (env AGG_SEARCH_NO_LEARN)")
@@ -1237,24 +1346,56 @@ def main():
     if a.list_profiles:
         print("\n".join(profiles.describe()))
         return
+    if a.list_portals:
+        print("\n".join(portals.describe()))
+        return
     a.default_engines = DEFAULT_ENGINES
     a.default_recency = None
     a.default_snippet_chars = DEFAULT_SNIPPET_CHARS
     a.default_top_n = DEFAULT_TOP_N
     a.default_per_engine = DEFAULT_PER_ENGINE
     env_fields = apply_env_defaults(a)
-    profile_name = a.profile or getenv("AGG_SEARCH_PROFILE") or "general"
+    portal_name = a.portal or getenv("AGG_SEARCH_PORTAL")
+    portal = None
+    if portal_name:
+        try:
+            portal = portals.load(portal_name)
+        except portals.UnknownPortal as exc:
+            sys.exit(str(exc.args[0]))
+    profile_name = (a.profile or getenv("AGG_SEARCH_PROFILE")
+                    or (portal["profile"] if portal else "general"))
     try:
         profile = profiles.load(profile_name)
     except profiles.UnknownProfile as exc:
         sys.exit(str(exc.args[0]))
     profiles.apply(a, profile, env_fields)
+    prompts = (portal["prompts"] if portal and profile_name == portal["profile"]
+               else portals.domain_prompts(profile_name))
+    answer_order = tuple(
+        portal["defaults"]["answer_order"] if portal
+        else ("local", "deepseek"))
+    degraded = []
+    if a.expand == 0 and portal:
+        default_exp = int(portal["defaults"].get("expand") or 0)
+        if default_exp >= 2:
+            if portal["dependencies"]["llm"]["expand_available"]:
+                a.expand = default_exp
+            else:
+                degraded.append(
+                    "expand skipped: portal %s has no local ollama dependency"
+                    % portal["id"])
+
     use_learn = not a.no_learn and not _env_flag("AGG_SEARCH_NO_LEARN")
     ENGINE_TIMEOUT = max(1.0, min(120.0, a.engine_timeout))
     _FAST_MODE = bool(a.fast) and not a.show_config
     if a.show_config:
-        print(json.dumps(show_config(a, profile_name, profile, use_learn),
+        print(json.dumps(show_config(a, profile_name, profile, use_learn,
+                                     portal=portal),
                          ensure_ascii=False, sort_keys=True))
+        return
+    if a.answer_sources:
+        _run_answer_sources(a.answer_sources, portal, profile_name, prompts,
+                            answer_order, cli_mode=a.answer)
         return
     if not a.query:
         sys.exit("a query is required (try --help, or --show-config)")
@@ -1292,6 +1433,8 @@ def main():
         miss = missing_credential(e)
         if miss:
             status[e] = "skipped: no %s" % miss
+            if portal:
+                degraded.append("engine %s skipped: missing %s" % (e, miss))
     engines = [e for e in engines if e not in status]
     # cooldown filter: quota/antibot/timeout only, empty never cools (MF3)
     cooldown = load_cooldown() if use_cooldown else {}
@@ -1317,10 +1460,14 @@ def main():
         if fast_deadline is not None:
             _TLS.deadline = fast_deadline
         try:
-            variants, expand_note = expand_queries(a.query, a.expand)
+            variants, expand_note = expand_queries(
+                a.query, a.expand, prompt_template=prompts["expand"])
         finally:
             _TLS.deadline = None
-        queries += variants
+        if variants:
+            queries += variants
+        elif expand_note:
+            degraded.append(expand_note)
 
     # disk cache (MF4): key covers every output-affecting input incl. mode
     ckey = cache_key(a.query, engines, a.recency, a.per_engine, a.rrf_top,
@@ -1413,6 +1560,8 @@ def main():
             ranked = reranked
         else:
             note = err
+            if portal and note:
+                degraded.append(note)
     ranked = ranked[:a.top_n]
     distinct_domains = len({domain_of(u) for u, _, _ in ranked})
     if use_learn:
@@ -1420,11 +1569,16 @@ def main():
 
     answer_text, answer_note = None, ""
     if a.answer:
-        answer_text, answer_note = answer_query(a.query, ranked, a.answer)
+        answer_text, answer_note, _used_mode, ans_deg = answer_with_fallback(
+            a.query, ranked, mode=a.answer, prompt_template=prompts["answer"],
+            fallback_order=answer_order)
+        degraded.extend(ans_deg)
 
     health = {"cached": cached, "diversify": diversify,
               "profile": profile_name,
               "distinct_domains": distinct_domains}
+    if portal:
+        health["portal"] = portal["id"]
     primary = [e for e in (profile.get("primary") or []) if e in engines]
     if primary:
         health["primary"] = {e: status.get(e, "not run") for e in primary}
@@ -1440,6 +1594,8 @@ def main():
     if a.fast:
         health["fast"] = {"budget_secs": a.budget_secs,
                           "min_sources": fast_min_sources}
+    if degraded:
+        health["degraded"] = degraded
     # observability (--json only; markdown output stays unchanged)
     health["latency_ms"] = {e: int(round(ms))
                             for e, ms in sorted(timings.items())}
@@ -1468,7 +1624,9 @@ def main():
 
     out = ["# Aggregate search: %s" % a.query, ""]
     out.append("engines: " + "; ".join("%s=%s" % kv for kv in status.items()))
-    if profile_name != "general":
+    if portal:
+        out.append("portal: %s" % portal["id"])
+    elif profile_name != "general":
         out.append("profile: %s" % profile_name)
     if cached:
         out.append("cache: hit (5min TTL)")
@@ -1488,6 +1646,8 @@ def main():
         out.append("rerank: " + note)
     if answer_note:
         out.append(answer_note)
+    if degraded:
+        out.append("degraded: " + "; ".join(degraded))
     out.append("")
     if answer_text:
         out.append("## Answer")

@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import os
 import socket
 import sys
 import threading
@@ -37,7 +38,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import cast
 from urllib.parse import urlsplit
 
-from agg_search import mcp
+from agg_search import mcp, portals
 
 MAX_BODY_BYTES = 1024 * 1024
 # bodies up to this size are drained before rejecting with 413 so the client
@@ -487,7 +488,21 @@ def main(argv=None):
     parser.add_argument("--allow-host", action="append", default=[],
                         metavar="HOST",
                         help="extra allowed Host name (repeatable)")
+    parser.add_argument("--portal", default=None, metavar="AGENT.DOMAIN",
+                        help="bind this HTTP server to a portal "
+                             "(sets AGG_SEARCH_PORTAL)")
     args = parser.parse_args(argv)
+    if args.portal:
+        try:
+            portals.load(args.portal)
+        except portals.UnknownPortal as exc:
+            raise SystemExit(str(exc.args[0]))
+        os.environ["AGG_SEARCH_PORTAL"] = args.portal
+    elif os.environ.get("AGG_SEARCH_PORTAL", "").strip():
+        try:
+            portals.load(os.environ["AGG_SEARCH_PORTAL"])
+        except portals.UnknownPortal as exc:
+            raise SystemExit(str(exc.args[0]))
 
     server = create_server(args.host, args.port, args.path,
                            args.allow_origin, args.allow_host)

@@ -15,7 +15,9 @@ Design notes
 
 from __future__ import annotations
 
+import argparse
 import concurrent.futures as cf
+import copy
 import json
 import os
 import signal
@@ -26,8 +28,9 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 
 try:  # package import (installed, `python -m agg_search.mcp`)
-    from . import profiles
+    from . import portals, profiles
 except ImportError:  # pragma: no cover - direct script execution
+    import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
 
 SERVER_NAME = "agg-search"
@@ -35,7 +38,7 @@ PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 # wall-clock cap per tool call (seconds); a slow search must not wedge the
 # transport, and the fetch ladder may legitimately climb three rungs.
-TOOL_TIMEOUT = {"search": 120.0, "fetch": 300.0}
+TOOL_TIMEOUT = {"search": 120.0, "fetch": 300.0, "answer": 180.0}
 MAX_WORKERS = 4
 
 INSTRUCTIONS = (
@@ -82,6 +85,10 @@ SEARCH_SCHEMA = {
             "description": "Domain preset: engines, RRF weights, recency and "
                            "snippet length tuned per field. Explicit arguments "
                            "still win over the profile.",
+        },
+        "portal": {
+            "type": "string",
+            "description": "Optional portal override (<agent>.<domain>).",
         },
         "include_domains": {
             "type": "array", "items": {"type": "string"},
@@ -193,6 +200,59 @@ FETCH_OUTPUT_SCHEMA = {
     "required": ["results"],
 }
 
+ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "description": "Question to synthesize."},
+        "sources": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "url": {"type": "string"},
+                    "text": {"type": "string"},
+                    "snippet": {"type": "string"},
+                },
+            },
+            "description": "Search snippets or fetched texts to ground the answer.",
+        },
+        "urls": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {"type": "string"},
+            "description": "Optional http(s) URLs to fetch before synthesizing.",
+        },
+        "mode": {
+            "type": "string",
+            "enum": ["auto", "local", "deepseek"],
+            "default": "auto",
+            "description": "LLM backend; auto follows the portal's fallback chain.",
+        },
+        "portal": {"type": "string", "description": "Optional portal override."},
+        "profile": {"type": "string", "enum": profiles.names(),
+                    "description": "Optional domain prompt override."},
+    },
+    "required": ["query"],
+    "additionalProperties": False,
+}
+
+ANSWER_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string"},
+        "portal": {"type": ["string", "null"]},
+        "profile": {"type": "string"},
+        "answer": {"type": ["string", "null"]},
+        "mode_used": {"type": ["string", "null"]},
+        "note": {"type": ["string", "null"]},
+        "degraded": {"type": "array", "items": {"type": "string"}},
+        "sources_used": {"type": "integer"},
+    },
+    "required": ["query", "sources_used"],
+}
+
 TOOLS = [
     {
         "name": "search",
@@ -236,7 +296,31 @@ TOOLS = [
     },
 ]
 
-TOOL_MODULES = {"search": "agg_search.search", "fetch": "agg_search.fetch"}
+ANSWER_TOOL = {
+    "name": "answer",
+    "title": "Synthesize cited answer",
+    "description": (
+        "Synthesize a citation-grounded answer from fetched page texts or "
+        "search snippets using the portal's domain prompt and fallback chain."
+    ),
+    "inputSchema": ANSWER_SCHEMA,
+    "outputSchema": ANSWER_OUTPUT_SCHEMA,
+    "annotations": {
+        "title": "Synthesize cited answer",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+}
+
+ALL_TOOLS = {t["name"]: t for t in TOOLS + [ANSWER_TOOL]}
+
+TOOL_MODULES = {
+    "search": "agg_search.search",
+    "fetch": "agg_search.fetch",
+    "answer": "agg_search.search",
+}
 
 _SEND_LOCK = threading.Lock()
 _RUNNING: dict[object, subprocess.Popen] = {}
@@ -253,6 +337,36 @@ def _flag_env(name):
 def cancel_request(request: dict) -> None:
     """Public cancellation hook (stdio and HTTP both use it)."""
     _cancel(request)
+
+
+def _active_portal():
+    """Load the configured portal from AGG_SEARCH_PORTAL, if any."""
+    raw = os.environ.get("AGG_SEARCH_PORTAL", "").strip()
+    if not raw:
+        return None
+    return portals.load(raw)
+
+
+def _tools_for_portal(portal):
+    """Return the portal's ordered tool subset with domain-tuned copy."""
+    if portal is None:
+        return copy.deepcopy(TOOLS)
+    out = []
+    descs = portal.get("tool_descriptions") or {}
+    for name in portal["tools"]:
+        if name not in ALL_TOOLS:
+            continue
+        tool = copy.deepcopy(ALL_TOOLS[name])
+        if name in descs:
+            tool["description"] = descs[name]
+        out.append(tool)
+    return out
+
+
+def _allowed_tools(portal):
+    if portal is None:
+        return {"search", "fetch"}
+    return set(portal["tools"])
 
 
 def build_args(name: str, arguments: dict) -> list[str]:
@@ -288,10 +402,26 @@ def build_args(name: str, arguments: dict) -> list[str]:
             args += ["--budget-secs", str(arguments["budget_secs"])]
         if arguments.get("engine_timeout"):
             args += ["--engine-timeout", str(arguments["engine_timeout"])]
+        if arguments.get("portal"):
+            args += ["--portal", str(arguments["portal"])]
+        elif os.environ.get("AGG_SEARCH_PORTAL", "").strip():
+            args += ["--portal", os.environ["AGG_SEARCH_PORTAL"].strip()]
         if arguments.get("profile"):
             args += ["--profile", str(arguments["profile"])]
         if arguments.get("no_jina"):
             args.append("--no-jina")
+        return args
+
+    if name == "answer":
+        args = ["--answer-sources", "-"]
+        if arguments.get("portal"):
+            args += ["--portal", str(arguments["portal"])]
+        elif os.environ.get("AGG_SEARCH_PORTAL", "").strip():
+            args += ["--portal", os.environ["AGG_SEARCH_PORTAL"].strip()]
+        if arguments.get("profile"):
+            args += ["--profile", str(arguments["profile"])]
+        if arguments.get("mode"):
+            args += ["--answer", str(arguments["mode"])]
         return args
 
     args = []
@@ -313,7 +443,7 @@ def build_args(name: str, arguments: dict) -> list[str]:
     return args
 
 
-def _run_cli(name: str, args: list[str], request_id=None):
+def _run_cli(name: str, args: list[str], request_id=None, stdin_text=None):
     """Run a module in its own process group with a hard wall clock.
 
     Returns (stdout, stderr, returncode, timed_out). The child is killed as a
@@ -321,13 +451,16 @@ def _run_cli(name: str, args: list[str], request_id=None):
     """
     cmd = [sys.executable, "-m", TOOL_MODULES[name], *args]
     proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        cmd,
+        stdin=subprocess.PIPE if stdin_text is not None else None,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
         start_new_session=True)
     if request_id is not None:
         with _RUNNING_LOCK:
             _RUNNING[request_id] = proc
     try:
-        out, err = proc.communicate(timeout=TOOL_TIMEOUT.get(name, 120.0))
+        out, err = proc.communicate(
+            input=stdin_text, timeout=TOOL_TIMEOUT.get(name, 120.0))
         return out, err, proc.returncode, False
     except subprocess.TimeoutExpired:
         try:
@@ -374,7 +507,8 @@ def _shape_result(name: str, output: str, stderr: str, code, timed_out: bool):
         return {"content": [{"type": "text", "text": message}],
                 "isError": True}
 
-    structured = _search_payload(output) if name == "search" else _fetch_payload(output)
+    structured = (_search_payload(output) if name in ("search", "answer")
+                  else _fetch_payload(output))
     failed = bool(code)
     text = (output or "").strip()
     if not text:
@@ -387,7 +521,7 @@ def _shape_result(name: str, output: str, stderr: str, code, timed_out: bool):
 
     result = {"content": [{"type": "text", "text": text}], "isError": failed}
     if structured is not None:
-        if name == "search":
+        if name in ("search", "answer"):
             result["content"] = [{"type": "text", "text": json.dumps(
                 structured, ensure_ascii=False, separators=(",", ":"))}]
         result["structuredContent"] = structured
@@ -397,6 +531,54 @@ def _shape_result(name: str, output: str, stderr: str, code, timed_out: bool):
 def call_tool(name: str, arguments: dict, request_id=None):
     if name not in TOOL_MODULES:
         raise KeyError(name)
+    if name == "answer":
+        sources = list(arguments.get("sources") or [])
+        fetch_notes = []
+        urls = list(arguments.get("urls") or [])
+        if urls:
+            f_out, f_err, _f_code, f_to = _run_cli(
+                "fetch",
+                build_args("fetch", {"urls": urls[:5], "text_limit": 4000}),
+                request_id)
+            if f_to:
+                fetch_notes.append("fetch timed out")
+            else:
+                for row in _fetch_payload(f_out).get("results", []):
+                    body = row.get("text") or row.get("markdown") or ""
+                    if not row.get("blocked") and not row.get("error") and body:
+                        sources.append({
+                            "url": row["url"],
+                            "title": row.get("title") or row["url"],
+                            "text": body,
+                        })
+                    else:
+                        fetch_notes.append("%s: %s" % (
+                            row.get("url", ""),
+                            row.get("error") or "unusable page"))
+                if f_err and not sources and not fetch_notes:
+                    fetch_notes.append(f_err.strip())
+        if not sources:
+            msg = "answer requires non-empty 'sources' or readable 'urls'"
+            if fetch_notes:
+                msg += " (%s)" % "; ".join(fetch_notes)
+            return {"content": [{"type": "text", "text": msg}], "isError": True}
+        payload = json.dumps({
+            "query": arguments["query"],
+            "sources": sources,
+            "mode": arguments.get("mode", "auto"),
+        }, ensure_ascii=False)
+        out, err, code, timed_out = _run_cli(
+            "answer", build_args("answer", arguments), request_id,
+            stdin_text=payload)
+        res = _shape_result("answer", out, err, code, timed_out)
+        if fetch_notes and isinstance(res.get("structuredContent"), dict):
+            deg = list(res["structuredContent"].get("degraded") or [])
+            deg.extend(fetch_notes)
+            res["structuredContent"]["degraded"] = deg
+            res["content"] = [{"type": "text", "text": json.dumps(
+                res["structuredContent"], ensure_ascii=False,
+                separators=(",", ":"))}]
+        return res
     out, err, code, timed_out = _run_cli(name, build_args(name, arguments),
                                          request_id)
     return _shape_result(name, out, err, code, timed_out)
@@ -411,11 +593,17 @@ def handle(request: dict) -> dict | None:
     method = request.get("method")
 
     if method == "initialize":
+        portal = _active_portal()
+        server_info = ({"name": portal["server_name"],
+                        "version": _server_version()}
+                       if portal else SERVER_INFO)
+        instructions = (portal["prompts"]["instructions"]
+                        if portal else INSTRUCTIONS)
         return {
             "protocolVersion": _negotiate(request.get("params") or {}),
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": SERVER_INFO,
-            "instructions": INSTRUCTIONS,
+            "serverInfo": server_info,
+            "instructions": instructions,
         }
 
     if method in ("notifications/initialized", "notifications/cancelled"):
@@ -425,13 +613,19 @@ def handle(request: dict) -> dict | None:
         return {}
 
     if method == "tools/list":
-        return {"tools": TOOLS}
+        return {"tools": _tools_for_portal(_active_portal())}
 
     if method == "tools/call":
         params = request.get("params") or {}
         name = params.get("name")
         if name not in TOOL_MODULES:
             raise KeyError("unknown tool: %s" % name)
+        portal = _active_portal()
+        if name not in _allowed_tools(portal):
+            raise KeyError(
+                "tool %r is not enabled in portal %r (enabled: %s)"
+                % (name, portal["id"] if portal else "default",
+                   ",".join(sorted(_allowed_tools(portal)))))
         arguments = params.get("arguments") or {}
         return call_tool(name, arguments, request.get("id"))
 
@@ -508,7 +702,24 @@ def _run_and_send(request: dict) -> None:
         send({"jsonrpc": "2.0", "id": request["id"], "result": result})
 
 
-def main() -> None:
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser(description="Stdio MCP server for agg-search.")
+    ap.add_argument("--portal", default=None, metavar="AGENT.DOMAIN",
+                    help="bind this server instance to a portal "
+                         "(sets AGG_SEARCH_PORTAL)")
+    args = ap.parse_args(argv)
+    if args.portal:
+        try:
+            portals.load(args.portal)
+        except portals.UnknownPortal as exc:
+            raise SystemExit(str(exc.args[0]))
+        os.environ["AGG_SEARCH_PORTAL"] = args.portal
+    elif os.environ.get("AGG_SEARCH_PORTAL", "").strip():
+        try:
+            portals.load(os.environ["AGG_SEARCH_PORTAL"])
+        except portals.UnknownPortal as exc:
+            raise SystemExit(str(exc.args[0]))
+
     pool = cf.ThreadPoolExecutor(max_workers=MAX_WORKERS,
                                  thread_name_prefix="tool")
     try:

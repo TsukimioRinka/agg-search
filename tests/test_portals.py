@@ -6,11 +6,13 @@ import io
 import json
 import os
 import pathlib
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
-from agg_search import install, portals, profiles
+from agg_search import install, mcp, portals, profiles, search
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -145,6 +147,198 @@ class PortalInstallCliTest(unittest.TestCase):
                 with contextlib.redirect_stdout(buf):
                     rc = install.main(["--portal", pid, "--check"])
                 self.assertEqual(rc, 0)
+
+
+class DomainPromptAndFallbackTest(unittest.TestCase):
+    def test_expand_uses_domain_prompt(self):
+        captured = {}
+
+        def fake_http_json(url, **kw):
+            captured["prompt"] = kw["body"]["messages"][0]["content"]
+            return {"message": {"content": "speculative decoding draft verification"}}
+
+        with mock.patch.object(search, "http_json", fake_http_json):
+            variants, note = search.expand_queries(
+                "speculative decoding", 2,
+                prompt_template=portals.load("codex.academic")["prompts"]["expand"])
+        self.assertEqual(variants, ["speculative decoding draft verification"])
+        self.assertIn("scholarly", captured["prompt"].lower())
+
+    def test_answer_with_fallback_follows_agent_order(self):
+        calls = []
+
+        def fake_answer(query, ranked, mode, prompt_template=None,
+                        fetched_texts=None):
+            calls.append((mode, prompt_template, bool(fetched_texts)))
+            if mode == "deepseek":
+                return None, "answer failed (no DEEPSEEK_API_KEY), skipped"
+            return "root cause [1]", None
+
+        ranked = [("https://stackoverflow.com/q/1", 1.0,
+                   {"title": "WAL lock", "snippet": "use busy_timeout",
+                    "engines": ["stack"]})]
+        portal = portals.load("claude-code.code")
+        with mock.patch.object(search, "answer_query", fake_answer):
+            text, note, used, degraded = search.answer_with_fallback(
+                "sqlite wal", ranked, mode="auto",
+                prompt_template=portal["prompts"]["answer"],
+                fallback_order=portal["defaults"]["answer_order"],
+                fetched_texts={"https://stackoverflow.com/q/1": "PRAGMA busy_timeout=5000"})
+        self.assertEqual([c[0] for c in calls], ["deepseek", "local"])
+        self.assertTrue(calls[0][2])
+        self.assertIn("engineering answer", calls[0][1])
+        self.assertEqual(text, "root cause [1]")
+        self.assertEqual(used, "local")
+        self.assertIn("answer fallback to local", note)
+        self.assertEqual(len(degraded), 1)
+
+    def test_cli_portal_degrades_cleanly_when_deps_missing(self):
+        def fake_openalex(q, n, r):
+            return [("https://arxiv.org/abs/2211.17192", "Speculative",
+                     "Draft model verification")], None
+
+        orig = search.ENGINES["openalex"]
+        search.ENGINES["openalex"] = (fake_openalex, orig[1])
+        try:
+            argv = [
+                "agg-search", "speculative decoding",
+                "--portal", "codex.academic",
+                "--expand", "2", "--answer", "--no-jina",
+                "--no-cache", "--no-cooldown", "--json",
+            ]
+            buf = io.StringIO()
+            with mock.patch.dict(os.environ, {
+                "OLLAMA_URL": "http://127.0.0.1:1",
+                "DEEPSEEK_API_KEY": "",
+                "EXA_API_KEY": "",
+                "BRAVE_API_KEY": "",
+                "TAVILY_API_KEY": "",
+                "TAVILY_API_KEY_BACKUP": "",
+            }), mock.patch.object(search, "getenv",
+                                  side_effect=lambda k, d=None: os.environ.get(k) or d), \
+                    mock.patch.object(search, "http_json",
+                                      side_effect=OSError("connection refused")), \
+                    mock.patch.object(sys, "argv", argv), \
+                    contextlib.redirect_stdout(buf):
+                search.main()
+        finally:
+            search.ENGINES["openalex"] = orig
+
+        payload = json.loads(buf.getvalue())
+        health = payload["engine_health"]
+        self.assertEqual(health["portal"], "codex.academic")
+        self.assertEqual(health["profile"], "academic")
+        self.assertTrue(payload["results"])
+        self.assertIn("arxiv.org", payload["results"][0]["url"])
+        self.assertTrue(health.get("degraded"))
+        joined = " | ".join(health["degraded"])
+        self.assertIn("expand failed", joined)
+        self.assertIn("local:", joined)
+
+    def test_show_config_portal_reports_dependencies_without_secrets(self):
+        secret = "sk-do-not-leak-999"
+        argv = ["agg-search", "--portal", "claude-code.code", "--show-config"]
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {"BRAVE_API_KEY": secret}), \
+                mock.patch.object(sys, "argv", argv), \
+                contextlib.redirect_stdout(buf):
+            search.main()
+        raw = buf.getvalue()
+        self.assertNotIn(secret, raw)
+        cfg = json.loads(raw)
+        self.assertEqual(cfg["portal"], "claude-code.code")
+        self.assertEqual(cfg["tools"], ["search", "fetch"])
+        self.assertIs(cfg["dependencies"]["engines"]["brave"], True)
+        self.assertIs(cfg["dependencies"]["engines"]["stack"], True)
+        self.assertIs(cfg["dependencies"]["local_llm_expected"], False)
+
+
+class McpPortalIsolationTest(unittest.TestCase):
+    def test_academic_portal_exposes_three_tools_in_order(self):
+        with mock.patch.dict(os.environ, {"AGG_SEARCH_PORTAL": "codex.academic"}):
+            init = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                               "params": {"protocolVersion": "2025-06-18"}})
+            tools = mcp.handle({"jsonrpc": "2.0", "id": 2,
+                                "method": "tools/list"})["tools"]
+        self.assertEqual(init["serverInfo"]["name"], "agg-search-academic")
+        self.assertIn("1) search -> 2) fetch -> 3) answer",
+                      init["instructions"])
+        self.assertIn("untrusted data", init["instructions"])
+        self.assertEqual([t["name"] for t in tools],
+                         ["search", "fetch", "answer"])
+        self.assertIn("Step 1 of 3", tools[0]["description"])
+
+    def test_code_portal_hides_and_blocks_answer_tool(self):
+        with mock.patch.dict(os.environ, {"AGG_SEARCH_PORTAL": "claude-code.code"}):
+            init = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                               "params": {}})
+            tools = mcp.handle({"jsonrpc": "2.0", "id": 2,
+                                "method": "tools/list"})["tools"]
+            self.assertEqual(init["serverInfo"]["name"], "agg-search-code")
+            self.assertEqual([t["name"] for t in tools], ["search", "fetch"])
+            with self.assertRaises(KeyError):
+                mcp.handle({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                            "params": {"name": "answer",
+                                       "arguments": {"query": "q"}}})
+
+    def test_news_portal_instructions_and_search_portal_arg(self):
+        with mock.patch.dict(os.environ, {"AGG_SEARCH_PORTAL": "gemini.news"}):
+            init = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                               "params": {}})
+            args = mcp.build_args("search", {"query": "ai policy"})
+        self.assertEqual(init["serverInfo"]["name"], "agg-search-news")
+        self.assertIn("1-day", init["instructions"])
+        self.assertEqual(args[args.index("--portal") + 1], "gemini.news")
+
+    def test_answer_tool_prefetch_urls_pipeline(self):
+        calls = []
+
+        def fake_run_cli(name, args, request_id=None, stdin_text=None):
+            calls.append((name, args, stdin_text))
+            if name == "fetch":
+                return (json.dumps({"url": "https://arxiv.org/abs/1",
+                                    "tier_used": "static", "title": "Paper",
+                                    "text": "Full abstract text",
+                                    "blocked": False, "error": ""}) + "\n",
+                        "", 0, False)
+            return (json.dumps({"query": "q", "portal": "codex.academic",
+                                "profile": "academic", "answer": "Summary [1]",
+                                "mode_used": "local", "note": None,
+                                "degraded": [], "sources_used": 1}),
+                    "", 0, False)
+
+        with mock.patch.dict(os.environ, {"AGG_SEARCH_PORTAL": "codex.academic"}), \
+                mock.patch.object(mcp, "_run_cli", fake_run_cli):
+            res = mcp.call_tool("answer", {
+                "query": "q", "urls": ["https://arxiv.org/abs/1"]})
+        self.assertFalse(res["isError"])
+        self.assertEqual([c[0] for c in calls], ["fetch", "answer"])
+        payload = json.loads(calls[1][2])
+        self.assertEqual(payload["sources"][0]["text"], "Full abstract text")
+        self.assertEqual(res["structuredContent"]["answer"], "Summary [1]")
+
+    def test_stdio_subprocess_portal_isolation(self):
+        env_code = dict(os.environ, AGG_SEARCH_PORTAL="claude-code.code")
+        msgs = "\n".join([
+            json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                        "params": {"protocolVersion": "2025-06-18"}}),
+            json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
+            json.dumps({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                        "params": {"name": "answer",
+                                   "arguments": {"query": "q"}}}),
+        ]) + "\n"
+        proc = subprocess.run(
+            [sys.executable, "-m", "agg_search.mcp"],
+            input=msgs, capture_output=True, text=True, env=env_code,
+            timeout=20)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        replies = {r["id"]: r for r in
+                   (json.loads(ln) for ln in proc.stdout.splitlines() if ln.strip())}
+        self.assertEqual(replies[1]["result"]["serverInfo"]["name"],
+                         "agg-search-code")
+        self.assertEqual([t["name"] for t in replies[2]["result"]["tools"]],
+                         ["search", "fetch"])
+        self.assertEqual(replies[3]["error"]["code"], -32602)
 
 
 if __name__ == "__main__":
