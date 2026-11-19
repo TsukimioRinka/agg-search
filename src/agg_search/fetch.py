@@ -10,18 +10,25 @@ Rungs 1-3 run inside the crawl-agent container (see docs/fetching.md);
 the host never loads scrapling or a browser. This script only assembles and
 runs `crawl-env` and relays its JSON output.
 
+Every URL is pre-flighted by check_url before either rung: http(s) only,
+no userinfo, and the resolved addresses must be public. `--allow-private`
+lifts the private-target rules for local dev servers and host proxies.
+
 Exit codes: 0 = >=1 URL ok (prints JSON lines); 1 = all URLs failed;
 2 = launcher/image missing; 3 = blocked on every URL (container reports blocked).
 """
 import argparse
+import ipaddress
 import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -29,6 +36,8 @@ PKG_DIR = str(Path(__file__).resolve().parent)
 CRAWL_ENV_FALLBACK = os.path.expanduser("~/.local/bin/crawl-env")
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
+MAX_RESPONSE = 4 * 1024 * 1024
+METADATA_HOSTS = ("metadata.google.internal",)
 
 
 def getenv(key, default=None):
@@ -50,6 +59,66 @@ def getenv(key, default=None):
 
 def squash(s):
     return re.sub(r"\s+", " ", s or "").strip()
+
+
+def _non_public(ip):
+    """True for an address a host-side fetch must not reach by default."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified)
+
+
+def check_url(url, allow_private=False):
+    """Pre-flight SSRF guard: returns (ok, reason).
+
+    http(s) only, no userinfo, and the host must resolve (DNS checked here)
+    to public addresses only. `allow_private` lifts the private-target rules
+    for local dev servers and host-loopback proxies; the scheme, credential
+    and cloud-metadata-name rules always apply.
+    """
+    try:
+        p = urllib.parse.urlsplit(url)
+    except ValueError as e:
+        return False, "invalid URL: %s" % e
+    scheme = (p.scheme or "").lower()
+    if scheme not in ("http", "https"):
+        return False, "unsupported scheme: %s" % (scheme or "(none)")
+    if "@" in p.netloc:
+        return False, "userinfo credentials are not allowed"
+    try:
+        host = (p.hostname or "").rstrip(".").lower()
+        port = p.port or (443 if scheme == "https" else 80)
+    except ValueError:
+        return False, "invalid port"
+    if not host:
+        return False, "missing host"
+    if any(ord(c) > 127 for c in host):
+        try:
+            host = host.encode("idna").decode("ascii")
+        except UnicodeError:
+            return False, "invalid IDN host"
+    if host in METADATA_HOSTS:
+        return False, "metadata host: %s" % host
+    if not allow_private and (host == "localhost"
+                              or host.endswith(".localhost")
+                              or host.endswith(".local")):
+        return False, "private host: %s" % host
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return False, "cannot resolve host: %s" % host
+    if not infos:
+        return False, "cannot resolve host: %s" % host
+    if not allow_private:
+        for info in infos:
+            try:
+                ip = ipaddress.ip_address(info[4][0].split("%")[0])
+            except ValueError:
+                return False, "invalid address for host: %s" % host
+            if _non_public(ip):
+                return False, "non-public address: %s" % ip
+    return True, ""
 
 
 def deepseek_fetch(url, a, key):
@@ -76,7 +145,11 @@ def deepseek_fetch(url, a, key):
             r = urllib.request.urlopen(req, timeout=a.timeout)
         with r:
             d["status"] = r.status
-            body = json.loads(r.read().decode())
+            raw = r.read(MAX_RESPONSE + 1)
+            if len(raw) > MAX_RESPONSE:
+                d["error"] = "response too large"
+                return d
+            body = json.loads(raw.decode())
     except urllib.error.HTTPError as e:
         # 403 = rejected by security policy, 404 = no usable content
         # (unavailable URL / site policy / unsupported type): both are
@@ -129,14 +202,28 @@ def main():
     ap.add_argument("--headful", action="store_true")
     ap.add_argument("--host-net", action="store_true",
                     help="share host network so a loopback-only proxy is reachable")
+    ap.add_argument("--allow-private", action="store_true",
+                    help="permit loopback/private targets (local dev servers, host proxies)")
     a = ap.parse_args()
 
     ok = blocked = False
-    leftover = list(a.url)
+    guarded = []
+    for u in a.url:
+        good, reason = check_url(u, a.allow_private)
+        if good:
+            guarded.append(u)
+            continue
+        print(json.dumps({"url": u, "error": "blocked: " + reason,
+                          "blocked": True, "tier_used": "guard"},
+                         ensure_ascii=False))
+        blocked = True
+    if not guarded:
+        return 3
+    leftover = guarded
     ds_key = getenv("DEEPSEEK_API_KEY")
     if a.tier == "deepseek" or (a.tier == "auto" and ds_key and not a.no_deepseek):
         leftover = []
-        for u in a.url:
+        for u in guarded:
             d = deepseek_fetch(u, a, ds_key)
             if d["blocked"] or d["error"]:
                 leftover.append(u)
