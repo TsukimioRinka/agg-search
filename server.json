@@ -1,0 +1,83 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.TsukimioRinka/agg-search",
+  "description": "Multi-engine web search with RRF fusion and Jina reranking, plus a tiered fetcher.",
+  "repository": {
+    "url": "https://github.com/TsukimioRinka/agg-search",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "agg-search",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "uvx",
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "agg-search-mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "EXA_API_KEY",
+          "description": "Exa semantic search key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "BRAVE_API_KEY",
+          "description": "Brave Search key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SERPER_API_KEY",
+          "description": "Serper (Google SERP) key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "MCP_ANYSEARCH_API_KEY",
+          "description": "AnySearch batch search key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "FIRECRAWL_API_KEY",
+          "description": "Firecrawl search key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "TAVILY_API_KEY",
+          "description": "Tavily search key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "DEEPSEEK_API_KEY",
+          "description": "DeepSeek search and fetch key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "JINA_API_KEY",
+          "description": "Jina reranker key",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SEARXNG_URL",
+          "description": "Self-hosted SearXNG base URL",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
