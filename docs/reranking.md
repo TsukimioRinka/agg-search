@@ -25,11 +25,11 @@ def rrf(ranks, k=60):
 
 ## Parameter tuning (record once, sweep free)
 
-`scripts/rrf_eval.py` replays this pipeline offline:
+`agg-search-eval` replays this pipeline offline:
 
 ```sh
-python3 <skill>/scripts/rrf_eval.py record --queries queries.json --out fixture.json   # spends engine quota, once
-python3 <skill>/scripts/rrf_eval.py sweep  --fixture fixture.json --judgments judgments.json [--no-jina] [--diversify]  # offline + Jina tokens only
+agg-search-eval record --queries queries.json --out fixture.json   # spends engine quota, once
+agg-search-eval sweep  --fixture fixture.json --judgments judgments.json [--no-jina] [--diversify]  # offline + Jina tokens only
 ```
 
 `record` stores every engine's raw rows for the judgment-set queries; `sweep`

@@ -8,18 +8,23 @@ returns clean Markdown in ~1s — no container, and the exit IP is DeepSeek's
 mode. `--tier deepseek` runs rung 0 alone; `--no-deepseek` disables it.
 
 Rungs 1-3 run in the `crawl-agent` container. The host never loads
-scrapling or a browser: the host script (`scripts/crawl_fetch.py`, stdlib only)
-just assembles a `crawl-env` call relaying `scripts/crawl_fetch_container.py`.
+scrapling or a browser: `src/agg_search/fetch.py` (stdlib only, entry point
+`crawl-fetch`) just assembles a `crawl-env` call relaying
+`src/agg_search/fetch_container.py`.
 
 ## Interface (any harness, any model)
 
 ```sh
-python3 <skill>/scripts/agg_search.py "<query>" --top-n 10        # multi-engine recall + RRF + Jina
-python3 <skill>/scripts/crawl_fetch.py --url <url...> [--tier auto|deepseek|static|dynamic|stealth] \
-  [--no-deepseek] [--timeout 45] [--out json|md] [--text-limit 8000] [--proxy URL] [--persist] [--headful]
+agg-search "<query>" --top-n 10                       # multi-engine recall + RRF + Jina
+crawl-fetch --url <url...> [--tier auto|deepseek|static|dynamic|stealth] \
+  [--no-deepseek] [--timeout 45] [--out json|md] [--text-limit 8000] [--proxy URL] \
+  [--persist] [--headful] [--allow-private] [--no-cache]
+
+# no install needed (source checkout):
+PYTHONPATH=src python3 -m agg_search.fetch --url <url...>
 ```
 
-`crawl_fetch.py` exit codes: `0` = ≥1 URL ok (JSON lines on stdout);
+`crawl-fetch` exit codes: `0` = ≥1 URL ok (JSON lines on stdout);
 `1` = all failed; `2` = launcher/image missing; `3` = blocked on every URL.
 Each URL yields exactly one JSON line (`tier_used` says which rung served it).
 
@@ -55,7 +60,7 @@ still fails that test the JSON carries `blocked: true` and the process exits 3.
   proxy. Bridge containers cannot reach the host's loopback, so a
   loopback-bound proxy (this host: clash mixed-port `127.0.0.1:7897`) needs
   `--host-net`, which shares the host network namespace:
-  `CRAWL_PROXY=http://127.0.0.1:7897 crawl_fetch.py --host-net --url …`
+  `CRAWL_PROXY=http://127.0.0.1:7897 crawl-fetch --host-net --url …`
   (verified working). `--host-net` slightly weakens network isolation (the
   container can reach host loopback services); only use it when proxying.
   Without `CRAWL_PROXY` the launcher passes **no** proxy variables at all —
@@ -88,7 +93,7 @@ docker rmi crawl-agent:latest   # nukes it; rebuild to restore
 Dockerfile source: `~/workspace/crawl-agent/Dockerfile`
 (`ubuntu:24.04` + venv `scrapling[all]` + playwright & patchright chromium).
 Image lives in `Docker Root Dir` (`/mnt/docker-data`, data disk — not the
-system disk). If the image is gone or docker is down, `crawl_fetch.py`
+system disk). If the image is gone or docker is down, `crawl-fetch`
 exits 2 with the rebuild hint; it never falls back to host crawling.
 
 ## Troubleshooting

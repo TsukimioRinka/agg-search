@@ -65,7 +65,11 @@ def result(url, tier_used, resp=None, include_md=False, error="", text_limit=800
 
 
 def fetch_one(url, args):
-    from scrapling.fetchers import Fetcher, DynamicFetcher, StealthyFetcher  # noqa: PLC0415
+    from scrapling.fetchers import (  # noqa: PLC0415
+        DynamicFetcher,
+        Fetcher,
+        StealthyFetcher,
+    )
 
     tiers = {"static": ("static",), "dynamic": ("dynamic",),
              "stealth": ("stealth",)}.get(args.tier,
