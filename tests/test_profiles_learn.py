@@ -153,5 +153,66 @@ class SurfaceTest(unittest.TestCase):
         self.assertNotEqual(a, b)
 
 
+class FastPrimaryTest(unittest.TestCase):
+    def test_fast_mode_waits_for_the_primary_engine(self):
+        import time as _time
+
+        from agg_search import search as m
+
+        def slow(q, n, r):
+            _time.sleep(0.4)
+            return [("https://primary.test/x", "p", "")], None
+
+        def fast(q, n, r):
+            _time.sleep(0.01)
+            return [("https://secondary.test/y", "s", "")], None
+
+        m.ENGINES["t_primary"] = (slow, 1.0)
+        m.ENGINES["t_secondary"] = (fast, 1.0)
+        try:
+            results, status, _note = m.recall_flat(
+                ["q"], 3, ["t_secondary", "t_primary"], None,
+                budget_secs=5, min_sources=1, must_engines=["t_primary"])
+        finally:
+            del m.ENGINES["t_primary"]
+            del m.ENGINES["t_secondary"]
+        self.assertTrue(status["t_primary"].startswith("ok"))
+        urls = [u for rows in results.values() for u, _, _ in rows]
+        self.assertIn("https://primary.test/x", urls)
+
+
+class RerankBlendTest(unittest.TestCase):
+    def test_blend_zero_keeps_the_rrf_order(self):
+        scored = [(0, 0.1), (1, 0.5), (2, 0.9)]
+        self.assertEqual(search._blend_order(scored, 3, 0.0), [0, 1, 2])
+
+    def test_blend_one_follows_jina(self):
+        scored = [(0, 0.1), (1, 0.5), (2, 0.9)]
+        self.assertEqual(search._blend_order(scored, 3, 1.0), [2, 1, 0])
+
+    def test_profiles_declare_a_blend(self):
+        self.assertEqual(profiles.PROFILES["academic"]["rerank_blend"], 0.4)
+        self.assertEqual(profiles.PROFILES["code"]["rerank_blend"], 0.6)
+
+    def test_jina_requests_the_full_score_vector(self):
+        from unittest import mock
+        captured = {}
+
+        def fake_http_json(url, **kw):
+            captured.update(kw)
+            return {"results": [{"index": i, "relevance_score": float(i)}
+                                for i in range(3)]}
+
+        ranked = [("u0", 1.0, {"title": "t", "snippet": "s"}),
+                  ("u1", 0.9, {"title": "t", "snippet": "s"}),
+                  ("u2", 0.8, {"title": "t", "snippet": "s"})]
+        with mock.patch.object(search, "http_json", fake_http_json), \
+                mock.patch.object(search, "getenv", lambda k, d=None: "key"):
+            out, err = search.jina_rerank("q", ranked, 2, blend=0.0)
+        self.assertIsNone(err)
+        self.assertEqual(captured["body"]["top_n"], 3)
+        self.assertEqual([u for u, _, _ in out], ["u0", "u1", "u2"])
+
+
 if __name__ == "__main__":
     unittest.main()

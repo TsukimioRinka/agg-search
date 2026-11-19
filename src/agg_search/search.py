@@ -804,13 +804,16 @@ def recall_multi(queries, n, engines, recency):
 
 
 def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
-                deadline=None):
+                deadline=None, must_engines=()):
     """Single-pool recall over (variant, engine) tasks with a shared deadline.
     Only used behind --fast; legacy recall_multi stays the default path.
     Returns (results, status, note): note carries sourcesTarget/achieved when
     min_sources is unmet (advisory, never fails the search for it).
     Only engines with actual rows count toward min_sources — a healthy
-    empty (`ok (0)`) must not trigger early return (P2-4)."""
+    empty (`ok (0)`) must not trigger early return (P2-4).
+    `must_engines` (a profile's primary engines, already filtered to the
+    requested set) gates the early return: a profile must not be served by
+    its secondary engines alone just because they answered faster."""
     tasks = [(qi, eng) for qi in range(len(queries)) for eng in engines]
     results, status, ok_engines = {}, {}, set()
     timing = {}
@@ -839,7 +842,8 @@ def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
             else:
                 status.setdefault(eng, "skipped/failed: %s" % err)
             if min_sources and len(ok_engines) >= min_sources:
-                break
+                if not must_engines or ok_engines & set(must_engines):
+                    break
     except cf.TimeoutError:
         timed_out = True
     else:
@@ -907,7 +911,12 @@ def rrf_fuse(results, top, weights=None, k=None, diversify=False):
 
 
 def jina_rerank(query, ranked, top_n, timeout=ENGINE_TIMEOUT, models=None,
-                max_attempts=2):
+                max_attempts=2, blend=None):
+    """Listwise rerank. `blend` in (0,1] interpolates the Jina relevance with
+    the incoming RRF order: 1.0 = pure Jina (historic behaviour), 0.4 keeps
+    engine consensus dominant. Domain profiles use it because listwise scores
+    on short title+snippet text can demote specialised sources (papers,
+    Q&A) below generic pages that merely repeat the query words."""
     key = getenv("JINA_API_KEY")
     if not key:
         return None, "no JINA_API_KEY, kept RRF order"
@@ -919,8 +928,10 @@ def jina_rerank(query, ranked, top_n, timeout=ENGINE_TIMEOUT, models=None,
         for attempt in range(1, max_attempts + 1):  # retry transient statuses
             try:
                 d = http_json("https://api.jina.ai/v1/rerank", method="POST",
+                              # ask for every candidate's score: blending
+                              # needs the full vector, not just Jina's top-N
                               body={"model": model, "query": query,
-                                    "documents": docs, "top_n": top_n},
+                                    "documents": docs, "top_n": len(docs)},
                               headers={"Authorization": "Bearer " + key},
                               timeout=timeout)
             except urllib.error.HTTPError as e:
@@ -936,16 +947,43 @@ def jina_rerank(query, ranked, top_n, timeout=ENGINE_TIMEOUT, models=None,
                     type(e).__name__, e)
             else:
                 try:  # 200 with malformed body must degrade, never crash
-                    order = [r["index"] for r in
-                             sorted(d["results"],
-                                    key=lambda r: r["relevance_score"],
-                                    reverse=True)]
-                except (KeyError, TypeError, AttributeError) as e:
-                    return None, "jina failed (bad response: %s), kept RRF order" % type(e).__name__
-                if not order:
+                    scored = [(r["index"], float(r["relevance_score"]))
+                              for r in d["results"]
+                              if isinstance(r.get("index"), int)]
+                except (KeyError, TypeError, AttributeError, ValueError):
+                    return None, ("jina failed (bad response), "
+                                  "kept RRF order")
+                if not scored:
                     return None, "jina returned no ranking, kept RRF order"
+                if blend is None:
+                    order = [i for i, _ in
+                             sorted(scored, key=lambda pair: pair[1],
+                                    reverse=True)]
+                else:
+                    order = _blend_order(scored, len(ranked), blend)
                 return [ranked[i] for i in order if i < len(ranked)], None
     return None, "jina failed (%s), kept RRF order" % err
+
+
+def _blend_order(scored, total, blend):
+    """Interpolate Jina relevance with the incoming RRF position.
+
+    Both signals are min-max normalised over the candidate set; positions
+    come from the (already fused) input order, so engine consensus keeps a
+    predictable share of the final ranking.
+    """
+    blend = max(0.0, min(1.0, float(blend)))
+    rel = [r for _, r in scored]
+    lo, hi = min(rel), max(rel)
+    span = (hi - lo) or 1.0
+    pos_norm = {i: 1.0 - (i / max(1, total - 1)) for i in range(total)}
+    final = []
+    for index, relevance in scored:
+        jina_norm = (relevance - lo) / span
+        final.append((index, blend * jina_norm
+                      + (1.0 - blend) * pos_norm.get(index, 0.0)))
+    return [i for i, _ in sorted(final, key=lambda pair: pair[1],
+                                 reverse=True)]
 
 
 def answer_query(query, ranked, mode):
@@ -1063,6 +1101,8 @@ def show_config(a, profile_name="general", profile=None, use_learn=True):
         weights[engine] = round(weights.get(engine, 1.0) * float(mult), 3)
     return {
         "profile": profile_name,
+        "primary": list((profile or {}).get("primary") or []),
+        "rerank_blend": (profile or {}).get("rerank_blend"),
         "engines": engines,
         "weights": weights,
         "learned_multipliers": learned,
@@ -1278,7 +1318,9 @@ def main():
             results, recall_status, fast_note = recall_flat(
                 queries, a.per_engine, engines, a.recency,
                 budget_secs=a.budget_secs, min_sources=fast_min_sources,
-                deadline=fast_deadline)
+                deadline=fast_deadline,
+                must_engines=[e for e in (profile.get("primary") or [])
+                              if e in engines])
         else:
             results, recall_status = recall_multi(queries, a.per_engine,
                                                  engines, a.recency)
@@ -1320,15 +1362,17 @@ def main():
 
     note = ""
     rerank_ms = 0.0
+    blend = profile.get("rerank_blend")
     if not a.no_jina:
         rerank_t0 = time.perf_counter()
         if a.fast:
             preferred = getenv("JINA_RERANK_MODEL", JINA_MODELS[0])
             reranked, err = jina_rerank(a.query, ranked, a.top_n,
                                        timeout=8, models=[preferred],
-                                       max_attempts=1)
+                                       max_attempts=1, blend=blend)
         else:
-            reranked, err = jina_rerank(a.query, ranked, a.top_n)
+            reranked, err = jina_rerank(a.query, ranked, a.top_n,
+                                       blend=blend)
         rerank_ms = (time.perf_counter() - rerank_t0) * 1000.0
         if reranked is not None:
             ranked = reranked
@@ -1346,6 +1390,9 @@ def main():
     health = {"cached": cached, "diversify": diversify,
               "profile": profile_name,
               "distinct_domains": distinct_domains}
+    primary = [e for e in (profile.get("primary") or []) if e in engines]
+    if primary:
+        health["primary"] = {e: status.get(e, "not run") for e in primary}
     if include_domains or exclude_domains:
         health["domain_filter"] = {"include": list(include_domains),
                                    "exclude": list(exclude_domains)}
