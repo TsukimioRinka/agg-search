@@ -18,6 +18,7 @@ Exit codes: 0 = >=1 URL ok (prints JSON lines); 1 = all URLs failed;
 2 = launcher/image missing; 3 = blocked on every URL (container reports blocked).
 """
 import argparse
+import hashlib
 import ipaddress
 import json
 import os
@@ -38,6 +39,53 @@ ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
 MAX_RESPONSE = 4 * 1024 * 1024
 METADATA_HOSTS = ("metadata.google.internal",)
+# page cache: agents re-read the same URLs while iterating; a 15 min shelf
+# saves engine/container cost without going stale on a task timescale.
+CACHE_DIR = os.environ.get("AGG_SEARCH_CACHE_DIR",
+                           os.path.expanduser("~/.cache/agg-search"))
+FETCH_CACHE_PATH = os.path.join(CACHE_DIR, "fetch_cache.json")
+CACHE_TTL = 900
+MAX_CACHE_ENTRIES = 100
+
+
+def cache_key(url, a):
+    parts = [url, a.tier, a.out, str(a.text_limit),
+             str(bool(getattr(a, "allow_private", False)))]
+    return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:32]
+
+
+def load_cache():
+    try:
+        with open(FETCH_CACHE_PATH, encoding="utf-8") as f:
+            store = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(store, dict):
+        return {}
+    return {k: v for k, v in store.items()
+            if isinstance(v, dict) and isinstance(v.get("at"), (int, float))
+            and isinstance(v.get("result"), dict)}
+
+
+def save_cache(store):
+    try:
+        os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
+        while len(store) > MAX_CACHE_ENTRIES:
+            oldest = min(store, key=lambda k: store[k].get("at", 0))
+            del store[oldest]
+        tmp = "%s.%d.tmp" % (FETCH_CACHE_PATH, os.getpid())
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(store, f)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, FETCH_CACHE_PATH)
+    except OSError:
+        pass
+
+
+def usable(d):
+    """A page worth keeping: real text and no error/block marker."""
+    return bool(d) and not d.get("error") and not d.get("blocked") \
+        and bool(d.get("text"))
 
 
 def getenv(key, default=None):
@@ -204,6 +252,8 @@ def main():
                     help="share host network so a loopback-only proxy is reachable")
     ap.add_argument("--allow-private", action="store_true",
                     help="permit loopback/private targets (local dev servers, host proxies)")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="bypass the 15 min page cache")
     a = ap.parse_args()
 
     ok = blocked = False
@@ -219,6 +269,29 @@ def main():
         blocked = True
     if not guarded:
         return 3
+
+    # page cache: hits are printed as results with cached=true and never
+    # reach an engine rung; only usable pages are stored.
+    use_cache = not a.no_cache
+    store = load_cache() if use_cache else {}
+    now = time.time()
+
+    def remember(d):
+        if use_cache and usable(d):
+            store[cache_key(d["url"], a)] = {"at": now, "result": d}
+            save_cache(store)
+
+    pending = []
+    for u in guarded:
+        hit = store.get(cache_key(u, a))
+        if hit and now - hit.get("at", 0) < CACHE_TTL:
+            print(json.dumps(dict(hit["result"], cached=True),
+                             ensure_ascii=False))
+            ok = True
+        else:
+            pending.append(u)
+    guarded = pending
+
     leftover = guarded
     ds_key = getenv("DEEPSEEK_API_KEY")
     if a.tier == "deepseek" or (a.tier == "auto" and ds_key and not a.no_deepseek):
@@ -232,6 +305,7 @@ def main():
                     print(json.dumps(d, ensure_ascii=False))
                 continue
             print(json.dumps(d, ensure_ascii=False))
+            remember(d)
             ok = True
         if a.tier == "deepseek":
             return 0 if ok else (3 if blocked else 1)
@@ -302,6 +376,7 @@ def main():
             blocked = True
         else:
             ok = True
+            remember(d)
     if p.stderr:
         print(p.stderr, file=sys.stderr, end="")
     if ok:
