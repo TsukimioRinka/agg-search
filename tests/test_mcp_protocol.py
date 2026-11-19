@@ -76,10 +76,28 @@ class ArgumentMappingTest(unittest.TestCase):
         args = mcp.build_args("search", {"query": "q", "engine_timeout": 12})
         self.assertEqual(args[args.index("--engine-timeout") + 1], "12")
 
-    def test_fetch_allow_private(self):
+    def test_allow_private_is_a_server_policy_not_a_tool_argument(self):
+        # A model-supplied allow_private must be ignored
         args = mcp.build_args("fetch", {"urls": ["https://a.test"],
                                         "allow_private": True})
+        self.assertNotIn("--allow-private", args)
+
+    def test_allow_private_env_enables_it_server_side(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ,
+                             {"AGG_SEARCH_ALLOW_PRIVATE": "1"}):
+            args = mcp.build_args("fetch", {"urls": ["https://a.test"]})
         self.assertIn("--allow-private", args)
+
+    def test_allow_cidrs_env_passes_through(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ,
+                             {"AGG_SEARCH_ALLOW_CIDRS": "198.18.0.0/15"}):
+            args = mcp.build_args("fetch", {"urls": ["https://a.test"]})
+        self.assertEqual(args[args.index("--allow-cidrs") + 1],
+                         "198.18.0.0/15")
 
 
 class ShapingTest(unittest.TestCase):

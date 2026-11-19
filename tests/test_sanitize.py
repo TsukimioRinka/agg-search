@@ -23,6 +23,18 @@ class SearchSanitizeTest(unittest.TestCase):
         self.assertEqual(fused[0][2]["snippet"], "s")
 
 
+class EscapeTest(unittest.TestCase):
+    def test_markdown_link_breakout_is_escaped(self):
+        evil = "x](https://evil.example) [click"
+        escaped = search.md_escape(evil)
+        self.assertNotIn("](", escaped.replace("\\]", "\\]"))
+        self.assertIn("\\]", escaped)
+        self.assertIn("\\(", escaped)
+
+    def test_control_characters_are_stripped(self):
+        self.assertEqual(search.clean_text("a\x1b[31mb\x07c"), "a[31mbc")
+
+
 class FetchSanitizeTest(unittest.TestCase):
     def test_host_squash_strips(self):
         self.assertEqual(fetch.squash("a\u200db\u202e c"), "ab c")

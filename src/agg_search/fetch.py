@@ -44,6 +44,10 @@ ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
 MAX_RESPONSE = 4 * 1024 * 1024
 METADATA_HOSTS = ("metadata.google.internal",)
+# Unconditional, even with --allow-private: cloud metadata is never a
+# legitimate fetch target.
+METADATA_IPS = frozenset({ipaddress.ip_address("169.254.169.254"),
+                          ipaddress.ip_address("fd00:ec2::254")})
 # page cache: agents re-read the same URLs while iterating; a 15 min shelf
 # saves engine/container cost without going stale on a task timescale.
 CACHE_DIR = os.environ.get("AGG_SEARCH_CACHE_DIR",
@@ -137,14 +141,31 @@ def _non_public(ip):
             or ip.is_reserved or ip.is_multicast or ip.is_unspecified)
 
 
-def check_url(url, allow_private=False):
+def parse_cidrs(value):
+    if isinstance(value, str):
+        value = value.split(",")
+    out = []
+    for item in value or ():
+        item = str(item).strip()
+        if not item:
+            continue
+        try:
+            out.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            continue
+    return tuple(out)
+
+
+def check_url(url, allow_private=False, allow_cidrs=()):
     """Pre-flight SSRF guard: returns (ok, reason).
 
     http(s) only, no userinfo, and the host must resolve (DNS checked here)
     to public addresses only. `allow_private` lifts the private-target rules
-    for local dev servers and host-loopback proxies; the scheme, credential
-    and cloud-metadata-name rules always apply.
+    for local dev servers; `allow_cidrs` permits specific ranges — TUN
+    proxies that hand out fake-IPs (198.18.0.0/15) need it. The scheme,
+    credential, cloud-metadata-name and metadata-IP rules always apply.
     """
+    allowed_nets = parse_cidrs(allow_cidrs)
     try:
         p = urllib.parse.urlsplit(url)
     except ValueError as e:
@@ -178,15 +199,31 @@ def check_url(url, allow_private=False):
         return False, "cannot resolve host: %s" % host
     if not infos:
         return False, "cannot resolve host: %s" % host
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        except ValueError:
+            return False, "invalid address for host: %s" % host
+        if ip in METADATA_IPS:
+            return False, "metadata address: %s" % ip
     if not allow_private:
         for info in infos:
-            try:
-                ip = ipaddress.ip_address(info[4][0].split("%")[0])
-            except ValueError:
-                return False, "invalid address for host: %s" % host
+            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+            if any(ip in net for net in allowed_nets):
+                continue
             if _non_public(ip):
                 return False, "non-public address: %s" % ip
     return True, ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse 3xx: a redirect must not silently become the fetch target."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def deepseek_fetch(url, a, key):
@@ -205,12 +242,12 @@ def deepseek_fetch(url, a, key):
                  "Authorization": "Bearer " + key})
     try:
         try:
-            r = urllib.request.urlopen(req, timeout=a.timeout)
+            r = _OPENER.open(req, timeout=a.timeout)
         except urllib.error.HTTPError as e:
             if e.code not in (408, 429) and e.code < 500:
                 raise
             time.sleep(1.2)
-            r = urllib.request.urlopen(req, timeout=a.timeout)
+            r = _OPENER.open(req, timeout=a.timeout)
         with r:
             d["status"] = r.status
             raw = r.read(MAX_RESPONSE + 1)
@@ -239,10 +276,10 @@ def deepseek_fetch(url, a, key):
         d["blocked"] = True
         d["error"] = "thin content (%d chars)" % len(text)
         return d
-    d["title"] = body.get("title") or ""
+    d["title"] = strip_invisible(body.get("title") or "")
     d["text"] = text[:a.text_limit]
     if a.out == "md":
-        d["markdown"] = md[:a.text_limit]
+        d["markdown"] = strip_invisible(md[:a.text_limit])
     return d
 
 
@@ -278,13 +315,18 @@ def main():
     ap.add_argument("--no-learn", action="store_true",
                     help="do not record which engines surfaced a page you "
                          "read (env AGG_SEARCH_NO_LEARN)")
+    ap.add_argument("--allow-cidrs", default=getenv("AGG_SEARCH_ALLOW_CIDRS", ""),
+                    help="comma-separated address ranges the SSRF guard should "
+                         "permit (TUN proxies hand out 198.18.0.0/15 fake-IPs); "
+                         "metadata IPs stay blocked")
     a = ap.parse_args()
     a.text_limit = max(500, min(200000, a.text_limit))
+    allow_cidrs = parse_cidrs(a.allow_cidrs)
 
     ok = blocked = False
     guarded = []
     for u in a.url:
-        good, reason = check_url(u, a.allow_private)
+        good, reason = check_url(u, a.allow_private, allow_cidrs)
         if good:
             guarded.append(u)
             continue
@@ -352,6 +394,10 @@ def main():
              "--tier", "auto" if a.tier == "auto" else a.tier,
              "--timeout", str(a.timeout),
              "--out", a.out, "--text-limit", str(a.text_limit)]
+    if a.allow_private:
+        inner.append("--allow-private")
+    if allow_cidrs:
+        inner += ["--allow-cidrs", ",".join(str(n) for n in allow_cidrs)]
     if a.persist:
         inner.append("--persist-container")
     if a.headful:

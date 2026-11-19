@@ -55,6 +55,9 @@ except ImportError:  # pragma: no cover - direct script execution
 
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
+# Engine bodies are a few hundred KB at most; a compromised or MITM'd
+# endpoint must not be able to OOM the process.
+MAX_RESPONSE = 4 * 1024 * 1024
 ENGINE_TIMEOUT = 25
 RRF_K = 60
 # preference order; JINA_RERANK_MODEL overrides the head of the chain
@@ -365,6 +368,29 @@ def diversify_ranked(ranked):
 
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Turn 3xx into an HTTPError.
+
+    urllib follows redirects by itself and keeps every request header, so a
+    302 from (or through) an engine endpoint would forward API keys to the
+    redirect target. Refusing is cheaper than teaching urllib to redact.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def _read_json(resp):
+    raw = resp.read(MAX_RESPONSE + 1)
+    if len(raw) > MAX_RESPONSE:
+        raise ValueError("engine response larger than %d bytes"
+                         % MAX_RESPONSE)
+    return json.loads(raw.decode())
+
+
 def http_json(url, *, method="GET", body=None, headers=None, timeout=None):
     if timeout is None:
         timeout = ENGINE_TIMEOUT
@@ -372,8 +398,8 @@ def http_json(url, *, method="GET", body=None, headers=None, timeout=None):
     req = urllib.request.Request(url, data=data, method=method,
                                  headers={"Content-Type": "application/json",
                                           **(headers or {})})
-    with urllib.request.urlopen(req, timeout=_effective_timeout(timeout)) as r:
-        return json.loads(r.read().decode())
+    with _OPENER.open(req, timeout=_effective_timeout(timeout)) as r:
+        return _read_json(r)
 
 
 _TLS = threading.local()
@@ -413,10 +439,19 @@ def norm_url(u):
 # titles/snippets are cleaned before they reach the model.
 _INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064"
                         "\u2066-\u2069\ufeff]")
+# C0/C1 controls (keeping tab/newline) would otherwise reach a terminal or
+# a log as ANSI escapes.
+_CONTROL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+_MD = re.compile(r"([\\`*_\[\]()])")
 
 
 def clean_text(text):
-    return _INVISIBLE.sub("", text or "")
+    return _CONTROL.sub("", _INVISIBLE.sub("", text or ""))
+
+
+def md_escape(text):
+    """Escape the characters that can break out of `[title](url)`."""
+    return _MD.sub(r"\\\1", text or "")
 
 
 def eng_exa(q, n):
@@ -443,8 +478,8 @@ def eng_brave(q, n, recency):
     url = ("https://api.search.brave.com/res/v1/web/search?"
            + urllib.parse.urlencode(params))
     req = urllib.request.Request(url, headers={"X-Subscription-Token": key})
-    with urllib.request.urlopen(req, timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
-        d = json.loads(r.read().decode())
+    with _OPENER.open(req, timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
+        d = _read_json(r)
     out = []
     for x in d.get("web", {}).get("results", [])[:n]:
         if not x.get("url"):
@@ -530,8 +565,8 @@ def eng_searxng(q, n, recency, timeout=ENGINE_TIMEOUT):
         params["time_range"] = recency
     url = base + "/search?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": "omp-agg/1.0"})
-    with urllib.request.urlopen(req, timeout=_effective_timeout(timeout)) as r:
-        d = json.loads(r.read().decode())
+    with _OPENER.open(req, timeout=_effective_timeout(timeout)) as r:
+        d = _read_json(r)
     LAST_SEARXNG_UNRESPONSIVE = d.get("unresponsive_engines") or []
     return ([(norm_url(x["url"]), x.get("title", ""),
               (x.get("content") or "")[:400]) for x in d.get("results", [])[:n]
@@ -625,9 +660,9 @@ def eng_openalex(q, n, recency):
         params["mailto"] = mailto
     url = "https://api.openalex.org/works?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": "agg-search/1.0"})
-    with urllib.request.urlopen(req,
-                                timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
-        d = json.loads(r.read().decode())
+    with _OPENER.open(req,
+                      timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
+        d = _read_json(r)
     out = []
     for work in d.get("results", [])[:n]:
         link = (work.get("doi")
@@ -1459,8 +1494,11 @@ def main():
         out.append(answer_text)
         out.append("")
     for i, (u, sc, m) in enumerate(ranked, 1):
+        safe_url = (u.replace("(", "%28").replace(")", "%29")
+                    .replace(" ", "%20"))
         out.append("%d. [%s](%s) — via %s (rrf %.4f)"
-                   % (i, m["title"] or u, u, "+".join(m["engines"]), sc))
+                   % (i, md_escape(m["title"] or u), safe_url,
+                      "+".join(m["engines"]), sc))
         if m["snippet"]:
             out.append("   %s" % clip_snippet(m["snippet"], snippet_chars))
     print("\n".join(out))

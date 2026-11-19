@@ -15,6 +15,7 @@ import unittest
 from unittest import mock
 
 from agg_search import fetch as m
+from agg_search import fetch_container, search
 
 MAX = 4 * 1024 * 1024
 
@@ -79,11 +80,18 @@ class GuardTest(unittest.TestCase):
 
     def test_loopback_and_private_addresses(self):
         cases = ("127.0.0.1", "10.1.2.3", "172.16.0.9", "192.168.1.10",
-                 "169.254.169.254", "0.0.0.0", "224.0.0.1", "240.0.0.1")
+                 "0.0.0.0", "224.0.0.1", "240.0.0.1")
         for addr in cases:
             ok, reason = self.check("http://example.com/", addresses=(addr,))
             self.assertFalse(ok, addr)
             self.assertIn("non-public address", reason)
+
+    def test_metadata_address_blocked_even_with_allow_private(self):
+        for addr in ("169.254.169.254", "fd00:ec2::254"):
+            ok, reason = self.check("http://example.com/", addresses=(addr,),
+                                    allow_private=True)
+            self.assertFalse(ok, addr)
+            self.assertIn("metadata address", reason)
 
     def test_ipv6_loopback(self):
         ok, reason = self.check("http://[::1]:8080/", addresses=("::1",))
@@ -154,11 +162,12 @@ class DeepSeekSizeTest(unittest.TestCase):
         def fake_getenv(key, default=None):
             return "test-key" if key == "DEEPSEEK_API_KEY" else default
 
-        with mock.patch.object(m.urllib.request, "urlopen",
-                               return_value=resp) as op, \
+        opener = mock.Mock()
+        opener.open.return_value = resp
+        with mock.patch.object(m, "_OPENER", opener), \
                 mock.patch.object(m, "getenv", fake_getenv):
             d = m.deepseek_fetch("https://example.com/", args, "test-key")
-        self.assertEqual(op.call_count, 1)
+        self.assertEqual(opener.open.call_count, 1)
         return d, resp
 
     def test_oversize_response(self):
@@ -174,6 +183,58 @@ class DeepSeekSizeTest(unittest.TestCase):
         self.assertEqual(d["error"], "")
         self.assertEqual(d["title"], "T")
         self.assertEqual(d["status"], 200)
+
+
+class ContainerGuardTest(unittest.TestCase):
+    def test_metadata_blocked_in_the_container_too(self):
+        with mock.patch.object(fetch_container.socket, "getaddrinfo",
+                               return_value=[(2, 1, 6, "", ("169.254.169.254", 80))]):
+            self.assertFalse(
+                fetch_container.final_target_allowed("http://meta/"))
+            self.assertFalse(
+                fetch_container.final_target_allowed("http://meta/",
+                                                     allow_private=True))
+
+    def test_private_redirect_needs_the_opt_in(self):
+        with mock.patch.object(fetch_container.socket, "getaddrinfo",
+                               return_value=[(2, 1, 6, "", ("10.0.0.5", 80))]):
+            self.assertFalse(
+                fetch_container.final_target_allowed("http://intranet/"))
+            self.assertTrue(
+                fetch_container.final_target_allowed("http://intranet/",
+                                                     allow_private=True))
+
+    def test_allow_cidrs_covers_the_tun_range(self):
+        with mock.patch.object(fetch_container.socket, "getaddrinfo",
+                               return_value=[(2, 1, 6, "", ("198.18.0.7", 443))]):
+            self.assertFalse(
+                fetch_container.final_target_allowed("https://x/"))
+            self.assertTrue(fetch_container.final_target_allowed(
+                "https://x/", allow_cidrs="198.18.0.0/15"))
+
+
+class SearchSizeTest(unittest.TestCase):
+    def test_engine_body_is_capped(self):
+        class Resp:
+            def read(self, n=-1):
+                return b"x" * (search.MAX_RESPONSE + 1)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        opener = mock.Mock()
+        opener.open.return_value = Resp()
+        with mock.patch.object(search, "_OPENER", opener):
+            with self.assertRaises(ValueError):
+                search.http_json("https://engine.test/")
+
+    def test_redirect_handler_refuses(self):
+        handler = search._NoRedirect()
+        self.assertIsNone(handler.redirect_request(
+            None, None, 302, "", {}, "https://evil.example/"))
 
 
 class GuardCliTest(unittest.TestCase):

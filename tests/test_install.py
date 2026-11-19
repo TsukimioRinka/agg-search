@@ -98,6 +98,16 @@ class WriteTest(unittest.TestCase):
         doc = json.loads(pathlib.Path(target).read_text(encoding="utf-8"))
         self.assertEqual(doc["mcp"]["servers"]["agg-search"]["type"], "local")
 
+    def test_old_backups_are_pruned(self):
+        stamps = iter("20260101-%06d" % i for i in range(20))
+        with mock.patch.object(install.time, "strftime",
+                               side_effect=lambda *a: next(stamps)):
+            for _ in range(8):
+                install.write_config(self.path, ("mcpServers",),
+                                     "agg-search", {"command": "uvx"})
+        backups = [n for n in os.listdir(self.tmp.name) if ".bak-" in n]
+        self.assertEqual(len(backups), 5)
+
     def test_preserves_file_mode_on_write_and_backup(self):
         os.chmod(self.path, 0o600)
         install.write_config(self.path, ("mcpServers",), "agg-search",

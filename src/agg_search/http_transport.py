@@ -158,6 +158,8 @@ def _process_message(message):
 
     if "id" not in message:
         # Notification: never answered, even when the method is unknown.
+        if method == "notifications/cancelled":
+            mcp.cancel_request(message)
         try:
             mcp.handle(message)
         except Exception:  # noqa: BLE001 - notifications are fire-and-forget
@@ -185,6 +187,10 @@ class MCPHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "agg-search-mcp"
     sys_version = ""
+    # socketserver applies this to the connection: a client that never
+    # finishes a request line (or stalls mid-body) is dropped instead of
+    # holding a thread forever.
+    timeout = 30
 
     # -- plumbing ---------------------------------------------------------
 
@@ -269,8 +275,18 @@ class MCPHandler(BaseHTTPRequestHandler):
     # -- body -------------------------------------------------------------
 
     def _content_length(self):
-        """Return (0, length), or (status, 0) after sending an error."""
-        raw = self.headers.get("Content-Length")
+        """Return (0, length), or (status, 0) after sending an error.
+
+        Duplicate `Content-Length` headers and `Content-Length` together with
+        `Transfer-Encoding` are request-smuggling vectors on a keep-alive
+        connection; refuse both instead of trusting the first header.
+        """
+        lengths = self.headers.get_all("Content-Length") or []
+        if len(lengths) > 1:
+            return self._reject(400, "duplicate content-length"), 0
+        if lengths and self.headers.get("Transfer-Encoding"):
+            return self._reject(400, "content-length with transfer-encoding"), 0
+        raw = lengths[0] if lengths else None
         if raw is None:
             if self.headers.get("Transfer-Encoding"):
                 return self._reject(411, "content-length required"), 0
@@ -414,10 +430,36 @@ class MCPHandler(BaseHTTPRequestHandler):
 class _ThreadingHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    # Bound the thread count: idle or slow clients must not be able to spawn
+    # an unbounded number of handler threads.
+    MAX_CONNECTIONS = 64
 
     def __init__(self, address, handler_cls, config):
         super().__init__(address, handler_cls)
         self.config = config
+        self._slots = threading.BoundedSemaphore(self.MAX_CONNECTIONS)
+
+    def process_request(self, request, client_address):
+        if not self._slots.acquire(blocking=False):
+            try:
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\n"
+                                b"Content-Length: 0\r\n"
+                                b"Connection: close\r\n\r\n")
+            except OSError:
+                pass
+            self.close_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def shutdown_request(self, request):
+        try:
+            super().shutdown_request(request)
+        finally:
+            self._slots.release()
 
 
 class _ThreadingHTTPServerV6(_ThreadingHTTPServer):

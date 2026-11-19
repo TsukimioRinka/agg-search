@@ -176,6 +176,7 @@ def write_config(path, section, name, entry):
             raise SystemExit("%s does not hold a JSON object" % path)
         backup = "%s.bak-%s" % (path, time.strftime("%Y%m%d-%H%M%S"))
         shutil.copy2(path, backup)  # keeps the original mode (0600 stays 0600)
+        _prune_backups(path)
     mode = (os.stat(path).st_mode & 0o777) if os.path.exists(path) else 0o600
     _section_view(doc, section)[name] = entry
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -186,6 +187,23 @@ def write_config(path, section, name, entry):
     os.chmod(tmp, mode)
     os.replace(tmp, path)
     return path
+
+
+def _prune_backups(path, keep=5):
+    """Keep the newest `keep` .bak-* siblings; a config with secrets in env
+    must not leave an unbounded trail of copies next to it."""
+    directory = os.path.dirname(path) or "."
+    prefix = os.path.basename(path) + ".bak-"
+    try:
+        names = sorted(name for name in os.listdir(directory)
+                       if name.startswith(prefix))
+    except OSError:
+        return
+    for name in names[:-keep]:
+        try:
+            os.remove(os.path.join(directory, name))
+        except OSError:
+            pass
 
 
 def check_client(name, info, runtime):

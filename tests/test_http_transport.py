@@ -7,6 +7,7 @@ contacted.
 """
 
 import json
+import socket
 import threading
 import unittest
 import urllib.error
@@ -187,6 +188,30 @@ class HTTPTransportTest(unittest.TestCase):
         status, _, body = self._post([])
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["error"]["code"], -32600)
+
+    def _raw(self, request_bytes):
+        sock = socket.create_connection(("127.0.0.1",
+                                         self.server.server_address[1]),
+                                        timeout=5)
+        try:
+            sock.sendall(request_bytes)
+            return sock.recv(4096)
+        finally:
+            sock.close()
+
+    def test_duplicate_content_length_is_rejected(self):
+        response = self._raw(
+            b"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: 2\r\nContent-Length: 5\r\n\r\n{}")
+        self.assertIn(b"400", response.split(b"\r\n", 1)[0])
+
+    def test_content_length_with_transfer_encoding_is_rejected(self):
+        response = self._raw(
+            b"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+            b"Content-Type: application/json\r\n"
+            b"Content-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n{}")
+        self.assertIn(b"400", response.split(b"\r\n", 1)[0])
 
     # -- malformed transport input ---------------------------------------
 

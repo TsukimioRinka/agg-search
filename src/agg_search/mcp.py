@@ -130,12 +130,9 @@ FETCH_SCHEMA = {
                  "description": "Fetch rung. auto = DeepSeek API, then the "
                                 "static -> dynamic -> stealth container ladder."},
         "out": {"type": "string", "enum": ["json", "md"], "default": "json"},
-        "text_limit": {"type": "integer", "minimum": 500, "maximum": 200000,
+        "text_limit": {"type": "integer", "minimum": 500, "maximum": 40000,
                        "default": 8000,
                        "description": "Characters of text kept per page."},
-        "allow_private": {"type": "boolean", "default": False,
-                          "description": "Allow loopback/private targets. Off "
-                                         "by default (SSRF guard)."},
     },
     "required": ["urls"],
     "additionalProperties": False,
@@ -244,6 +241,18 @@ TOOL_MODULES = {"search": "agg_search.search", "fetch": "agg_search.fetch"}
 _SEND_LOCK = threading.Lock()
 _RUNNING: dict[object, subprocess.Popen] = {}
 _RUNNING_LOCK = threading.Lock()
+# cap queued tool calls: MAX_WORKERS bounds concurrency, this bounds backlog
+MAX_INFLIGHT = 16
+_INFLIGHT = threading.BoundedSemaphore(MAX_INFLIGHT)
+
+
+def _flag_env(name):
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+def cancel_request(request: dict) -> None:
+    """Public cancellation hook (stdio and HTTP both use it)."""
+    _cancel(request)
 
 
 def build_args(name: str, arguments: dict) -> list[str]:
@@ -294,8 +303,13 @@ def build_args(name: str, arguments: dict) -> list[str]:
         args += ["--out", arguments["out"]]
     if arguments.get("text_limit"):
         args += ["--text-limit", str(arguments["text_limit"])]
-    if arguments.get("allow_private"):
+    if _flag_env("AGG_SEARCH_ALLOW_PRIVATE"):
+        # Server-side policy only: a model must not be able to widen the
+        # SSRF guard by editing tool arguments.
         args.append("--allow-private")
+    cidrs = os.environ.get("AGG_SEARCH_ALLOW_CIDRS", "").strip()
+    if cidrs:
+        args += ["--allow-cidrs", cidrs]
     return args
 
 
@@ -458,6 +472,10 @@ def _dispatch(request: object, pool) -> None:
             _cancel(request)
         return
     if method == "tools/call":
+        if not _INFLIGHT.acquire(blocking=False):
+            send(_error(request["id"], -32603,
+                        "server busy (%d tool calls in flight)" % MAX_INFLIGHT))
+            return
         pool.submit(_run_and_send, request)
         return
     try:
@@ -484,6 +502,8 @@ def _run_and_send(request: dict) -> None:
     except Exception as exc:  # noqa: BLE001
         send(_error(request["id"], -32603, "%s: %s" % (type(exc).__name__, exc)))
         return
+    finally:
+        _INFLIGHT.release()
     if result is not None:
         send({"jsonrpc": "2.0", "id": request["id"], "result": result})
 

@@ -11,10 +11,13 @@ Exit 0 = >=1 ok; 1 = all failed; 3 = blocked on every URL (non-200, block
 markers, or JS-shell thin content after the last tier).
 """
 import argparse
+import ipaddress
 import json
 import os
 import re
+import socket
 import sys
+import urllib.parse
 
 BLOCK_MARKERS = (
     "just a moment", "cf-challenge", "attention required",
@@ -29,6 +32,63 @@ INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064"
 
 def squash(s):
     return re.sub(r"\s+", " ", INVISIBLE.sub("", s or "")).strip()
+
+
+METADATA_IPS = frozenset({ipaddress.ip_address("169.254.169.254"),
+                          ipaddress.ip_address("fd00:ec2::254")})
+
+
+def _non_public(ip):
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return (ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified)
+
+
+def parse_cidrs(value):
+    out = []
+    for item in (value or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            out.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            continue
+    return tuple(out)
+
+
+def final_target_allowed(url, allow_private=False, allow_cidrs=""):
+    """Re-check the host a fetch actually ended up on.
+
+    The host-side guard can only check the URL it was given; scrapling
+    follows redirects, so the final response may be for a private address.
+    `CRAWL_ALLOW_PRIVATE`/`CRAWL_ALLOW_CIDRS` mirror the host flags.
+    """
+    allowed_nets = parse_cidrs(allow_cidrs)
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = (parts.hostname or "").rstrip(".").lower()
+        port = parts.port or (443 if parts.scheme == "https" else 80)
+    except ValueError:
+        return False
+    if not host:
+        return False
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        except ValueError:
+            return False
+        if ip in METADATA_IPS:
+            return False
+        if not allow_private and _non_public(ip):
+            if not any(ip in net for net in allowed_nets):
+                return False
+    return True
 
 
 def needs_escalation(status, html, text):
@@ -112,6 +172,14 @@ def fetch_one(url, args):
             last = result(url, tier, error="%s: %s" % (type(e).__name__, e),
                           text_limit=args.text_limit)
             continue
+        final_url = getattr(resp, "url", None) or url
+        if not final_target_allowed(final_url, args.allow_private,
+                                     args.allow_cidrs):
+            last = result(url, tier, error="blocked: redirect target is "
+                          "not a public address (%s)" % final_url,
+                          text_limit=args.text_limit)
+            last["blocked"] = True
+            continue
         body = resp.body
         html = body.decode("utf-8", "replace") if isinstance(body, bytes) else str(body)
         d = result(url, tier, resp, include_md=(args.out == "md"),
@@ -136,6 +204,8 @@ def main():
     ap.add_argument("--headful", action="store_true")
     ap.add_argument("--headful-container", action="store_true")
     ap.add_argument("--persist-container", action="store_true")
+    ap.add_argument("--allow-private", action="store_true")
+    ap.add_argument("--allow-cidrs", default="")
     args = ap.parse_args()
 
     n_ok, n_blocked = 0, 0
