@@ -19,6 +19,15 @@ Environment (keys also fall back to ~/.config/agent-env and
   JINA_API_KEY (optional; absent/disabled/failed -> RRF order kept),
   JINA_RERANK_MODEL (optional, default jina-reranker-v3.5; the chain
   falls back v3 -> v2-base-multilingual when a model is unavailable).
+
+Config defaults may come from the environment instead of flags:
+AGG_SEARCH_ENGINES (comma list), AGG_SEARCH_TOP_N, AGG_SEARCH_PER_ENGINE,
+AGG_SEARCH_SNIPPET_CHARS, AGG_SEARCH_FAST and AGG_SEARCH_NO_JINA
+(1/true/yes). They apply only when the matching flag is omitted, and
+invalid values are ignored. `--show-config` prints the effective settings
+as JSON (credentials as booleans, never key values) and exits before any
+network call; `--json` output carries per-engine latency and phase timings
+under engine_health.
 """
 import argparse
 import concurrent.futures as cf
@@ -60,6 +69,18 @@ CREDENTIAL_ENV = {
 }
 # last SearXNG unresponsive_engines report [[name, reason], ...]
 LAST_SEARXNG_UNRESPONSIVE = []
+# last per-engine wall time in ms (engine -> ms); variant runs fold by max.
+# Written by recall/recall_multi/recall_flat, read by main() for --json.
+LAST_TIMINGS = {}
+# CLI defaults; AGG_SEARCH_* env vars may replace them when a flag is omitted
+DEFAULT_ENGINES = "exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng"
+DEFAULT_TOP_N = 10
+DEFAULT_PER_ENGINE = 5
+DEFAULT_SNIPPET_CHARS = 400
+_TRUTHY = ("1", "true", "yes")
+# effective --fast (flag or AGG_SEARCH_FAST); the script tail reads it so an
+# env-driven budget is not voided by non-daemon pool joins at exit (P1-1)
+_FAST_MODE = False
 
 
 def _env_file_value(path, key):
@@ -551,17 +572,27 @@ ENGINES = {
 }
 
 
-def recall(query, n, engines, recency):
-    results, status = {}, {}
+def _timed_call(name, query, n, recency):
+    """(rows, err, elapsed_ms) for one engine; per-engine熔断 lives here."""
+    t0 = time.perf_counter()
+    try:
+        rows, err = ENGINES[name][0](query, n, recency)
+    except Exception as e:  # per-engine熔断: never block fusion
+        rows, err = None, "%s: %s" % (type(e).__name__, e)
+    return rows, err, (time.perf_counter() - t0) * 1000.0
+
+
+def _recall_one(query, n, engines, recency):
+    """One query across engines -> (results, status, timing_ms)."""
+    results, status, timing = {}, {}, {}
 
     def run(name):
-        try:
-            return name, ENGINES[name][0](query, n, recency)
-        except Exception as e:  # per-engine熔断: never block fusion
-            return name, (None, "%s: %s" % (type(e).__name__, e))
+        rows, err, ms = _timed_call(name, query, n, recency)
+        return name, rows, err, ms
 
     with cf.ThreadPoolExecutor(max_workers=len(engines)) as ex:
-        for name, (rows, err) in ex.map(run, engines):
+        for name, rows, err, ms in ex.map(run, engines):
+            timing[name] = ms
             if rows:
                 results[name] = rows
                 status[name] = "ok (%d)" % len(rows)
@@ -569,6 +600,13 @@ def recall(query, n, engines, recency):
                 status[name] = "ok (0)"  # healthy empty, never cooled
             else:
                 status[name] = "skipped/failed: %s" % err
+    return results, status, timing
+
+
+def recall(query, n, engines, recency):
+    results, status, timing = _recall_one(query, n, engines, recency)
+    LAST_TIMINGS.clear()
+    LAST_TIMINGS.update(timing)
     return results, status
 
 
@@ -609,17 +647,22 @@ def recall_multi(queries, n, engines, recency):
     variant) list as `engine#i` so RRF fuses them as separate rankings."""
     if len(queries) == 1:
         return recall(queries[0], n, engines, recency)
-    results, status = {}, {}
+    results, status, timing = {}, {}, {}
     with cf.ThreadPoolExecutor(max_workers=len(queries)) as ex:
-        for i, (res, st) in enumerate(
-                ex.map(lambda qq: recall(qq, n, engines, recency),
+        for i, (res, st, tm) in enumerate(
+                ex.map(lambda qq: _recall_one(qq, n, engines, recency),
                        queries)):
             for eng, s in st.items():
                 # merge: keep the best outcome per engine across variants
                 if eng not in status or status[eng].startswith("skipped/failed"):
                     status[eng] = s if i == 0 or s.startswith("ok") else status[eng]
+            for eng, ms in tm.items():
+                # fold like the status merge: the slowest variant is the cost
+                timing[eng] = max(timing.get(eng, 0.0), ms)
             for eng, rows in res.items():
                 results["%s#%d" % (eng, i)] = rows
+    LAST_TIMINGS.clear()
+    LAST_TIMINGS.update(timing)
     return results, status
 
 
@@ -633,6 +676,7 @@ def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
     empty (`ok (0)`) must not trigger early return (P2-4)."""
     tasks = [(qi, eng) for qi in range(len(queries)) for eng in engines]
     results, status, ok_engines = {}, {}, set()
+    timing = {}
     if deadline is None:
         deadline = time.monotonic() + budget_secs
     wait = max(0.5, deadline - time.monotonic())
@@ -644,9 +688,11 @@ def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
         for fut in cf.as_completed(futs, timeout=wait):
             qi, eng = futs[fut]
             try:
-                key, rows, err = fut.result()
+                key, rows, err, ms = fut.result()
             except Exception as e:  # noqa: BLE001 — same熔断contract as recall
-                key, rows, err = "%s#%d" % (eng, qi) if len(queries) > 1 else eng, None, "%s: %s" % (type(e).__name__, e)
+                key = "%s#%d" % (eng, qi) if len(queries) > 1 else eng
+                rows, err, ms = None, "%s: %s" % (type(e).__name__, e), 0.0
+            timing[eng] = max(timing.get(eng, 0.0), ms)
             if rows:
                 results[key] = rows
                 status[eng] = "ok (%d)" % len(rows)
@@ -671,16 +717,19 @@ def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
     if min_sources and len(ok_engines) < min_sources:
         note = ("sourcesTarget: %d, achieved: %d (budget %.0fs)"
                 % (min_sources, len(ok_engines), budget_secs))
+    LAST_TIMINGS.clear()
+    LAST_TIMINGS.update(timing)
     return results, status, note
 
 
 def _flat_one(query, n, recency, eng, qi, deadline):
     _TLS.deadline = deadline  # thread-local: visible only in this worker
+    t0 = time.perf_counter()
     try:
         rows, err = ENGINES[eng][0](query, n, recency)
     except Exception as e:  # noqa: BLE001
-        return eng, None, "%s: %s" % (type(e).__name__, e)
-    return ("%s#%d" % (eng, qi)), rows, err
+        rows, err = None, "%s: %s" % (type(e).__name__, e)
+    return ("%s#%d" % (eng, qi)), rows, err, (time.perf_counter() - t0) * 1000.0
 
 
 def rrf_fuse(results, top, weights=None, k=None, diversify=False):
@@ -804,17 +853,105 @@ def answer_query(query, ranked, mode):
             type(e).__name__, e)
 
 
+def _env_int(name):
+    """Positive int from the environment, else None (unset/invalid/non-int)."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    try:
+        v = int(raw.strip())
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def _env_flag(name):
+    """True only for 1/true/yes (case-insensitive); anything else is unset."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    return True if raw.strip().lower() in _TRUTHY else None
+
+
+def apply_env_defaults(a):
+    """Fold AGG_SEARCH_* env vars into `a` where the flag was omitted.
+
+    A flag counts as omitted only while it still equals its hardcoded
+    argparse default (so --help keeps showing real defaults); an explicit
+    flag always wins. Invalid env values are ignored silently — a bad
+    AGG_SEARCH_TOP_N must never crash a search or half-apply."""
+    if a.engines == DEFAULT_ENGINES:
+        raw = os.environ.get("AGG_SEARCH_ENGINES")
+        names = [e.strip() for e in (raw or "").split(",") if e.strip()]
+        if names and all(e in ENGINES for e in names):
+            a.engines = ",".join(names)
+    if a.top_n == DEFAULT_TOP_N:
+        v = _env_int("AGG_SEARCH_TOP_N")
+        if v is not None:
+            a.top_n = v
+    if a.per_engine == DEFAULT_PER_ENGINE:
+        v = _env_int("AGG_SEARCH_PER_ENGINE")
+        if v is not None:
+            a.per_engine = v
+    if a.snippet_chars == DEFAULT_SNIPPET_CHARS:
+        v = _env_int("AGG_SEARCH_SNIPPET_CHARS")
+        if v is not None:
+            a.snippet_chars = v
+    if a.fast is False and _env_flag("AGG_SEARCH_FAST"):
+        a.fast = True
+    if a.no_jina is False and _env_flag("AGG_SEARCH_NO_JINA"):
+        a.no_jina = True
+    return a
+
+
+def show_config(a):
+    """Effective settings for bug reports: credentials as booleans only.
+
+    Every credential probe is `missing_credential(...) is None`; no key
+    value is read into the payload, so this output is safe to paste."""
+    req = [e.strip() for e in a.engines.split(",") if e.strip()]
+    engines = [e for e in req if e in ENGINES] or list(ENGINES)
+    return {
+        "engines": engines,
+        "top_n": a.top_n,
+        "per_engine": a.per_engine,
+        "rrf_top": a.rrf_top,
+        "recency": a.recency,
+        "snippet_chars": clamp_snippet_chars(a.snippet_chars),
+        "fast": bool(a.fast),
+        "no_jina": bool(a.no_jina),
+        "budget_secs": a.budget_secs,
+        "min_sources": (a.min_sources if a.min_sources is not None
+                        else (2 if a.fast else 0)),
+        "expand": a.expand,
+        "diversify": not a.no_diversify,
+        "include_domains": list(parse_domains(a.include_domains)),
+        "exclude_domains": list(parse_domains(a.exclude_domains)),
+        "cache": not a.no_cache,
+        "cooldown": not a.no_cooldown,
+        "answer": a.answer,
+        "credentials": {e: missing_credential(e) is None for e in engines},
+    }
+
+
 def main():
     ap = argparse.ArgumentParser(description="parallel multi-engine search + RRF + jina rerank")
-    ap.add_argument("query")
-    ap.add_argument("--top-n", type=int, default=10)
+    ap.add_argument("query", nargs="?", help="search query")
+    ap.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
+                    help="results to return (default: %(default)s; "
+                         "env AGG_SEARCH_TOP_N)")
     ap.add_argument("--rrf-top", type=int, default=15)
-    ap.add_argument("--no-jina", action="store_true")
-    ap.add_argument("--engines",
-                    default="exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng")
+    ap.add_argument("--no-jina", action="store_true",
+                    help="skip Jina rerank, keep RRF order "
+                         "(env AGG_SEARCH_NO_JINA)")
+    ap.add_argument("--engines", default=DEFAULT_ENGINES,
+                    help="comma-separated engines (default: %(default)s; "
+                         "env AGG_SEARCH_ENGINES)")
     ap.add_argument("--recency", choices=["day", "week", "month", "year"],
                     default=None)
-    ap.add_argument("--per-engine", type=int, default=5)
+    ap.add_argument("--per-engine", type=int, default=DEFAULT_PER_ENGINE,
+                    help="rows requested per engine (default: %(default)s; "
+                         "env AGG_SEARCH_PER_ENGINE)")
     ap.add_argument("--expand", type=int, default=0, metavar="N",
                     help="query-expansion fan-out: N>=2 runs N-1 local-LLM "
                          "rewrites as extra recall paths (RAG-Fusion)")
@@ -827,7 +964,8 @@ def main():
     ap.add_argument("--fast", action="store_true",
                     help="recall budget mode: single-pool fan-out with a shared "
                          "deadline + early return once --min-sources succeed. "
-                         "Default off: legacy wait-for-all behavior is kept.")
+                         "Default off: legacy wait-for-all behavior is kept "
+                         "(env AGG_SEARCH_FAST=1/true/yes).")
     ap.add_argument("--budget-secs", type=float, default=30.0,
                     help="shared recall deadline in --fast mode only")
     ap.add_argument("--min-sources", type=int, default=None,
@@ -846,10 +984,22 @@ def main():
     ap.add_argument("--exclude-domains", default="",
                     help="comma-separated host/suffix blocklist; wins over "
                          "--include-domains")
-    ap.add_argument("--snippet-chars", type=int, default=400,
+    ap.add_argument("--snippet-chars", type=int, default=DEFAULT_SNIPPET_CHARS,
                     help="rendered snippet length in output, clamped 80..2000 "
-                         "(default 400)")
+                         "(default: %(default)s; env AGG_SEARCH_SNIPPET_CHARS)")
+    ap.add_argument("--show-config", action="store_true",
+                    help="print the effective settings as one JSON object and "
+                         "exit 0 before any network call; credentials appear "
+                         "as booleans only, never as key values")
     a = ap.parse_args()
+    apply_env_defaults(a)
+    global _FAST_MODE
+    _FAST_MODE = bool(a.fast) and not a.show_config
+    if a.show_config:
+        print(json.dumps(show_config(a), ensure_ascii=False, sort_keys=True))
+        return
+    if not a.query:
+        sys.exit("a query is required (try --help, or --show-config)")
     req_names = [e.strip() for e in a.engines.split(",") if e.strip()]
     unknown = [e for e in req_names if e not in ENGINES]
     if unknown:
@@ -913,6 +1063,9 @@ def main():
                      exclude_domains=exclude_domains,
                      snippet_chars=snippet_chars)
     cached = False
+    cache_age = 0.0
+    timings = {}
+    recall_ms = 0.0
     results, recall_status, fast_note = {}, {}, ""
     if use_cache and len(queries) == 1 and not a.answer:
         store = load_cache()
@@ -924,7 +1077,9 @@ def main():
             global LAST_SEARXNG_UNRESPONSIVE
             LAST_SEARXNG_UNRESPONSIVE = hit.get("searxng_unresponsive") or []
             cached = True
+            cache_age = max(0.0, now - hit.get("at", 0))
     if not cached:
+        recall_t0 = time.perf_counter()
         if a.fast:
             results, recall_status, fast_note = recall_flat(
                 queries, a.per_engine, engines, a.recency,
@@ -934,6 +1089,8 @@ def main():
             results, recall_status = recall_multi(queries, a.per_engine,
                                                  engines, a.recency)
             fast_note = ""
+        recall_ms = (time.perf_counter() - recall_t0) * 1000.0
+        timings = dict(LAST_TIMINGS)
         if use_cache and len(queries) == 1 and not a.answer and results:
             store = load_cache()
             store[ckey] = {"at": now,
@@ -965,10 +1122,14 @@ def main():
     if len(queries) > 1:
         weights = {name: ENGINES.get(name.split("#", 1)[0], (None, 1.0))[1]
                    for name in results}
+    fuse_t0 = time.perf_counter()
     ranked = rrf_fuse(results, a.rrf_top, weights, diversify=diversify)
+    dedupe_ms = (time.perf_counter() - fuse_t0) * 1000.0
 
     note = ""
+    rerank_ms = 0.0
     if not a.no_jina:
+        rerank_t0 = time.perf_counter()
         if a.fast:
             preferred = getenv("JINA_RERANK_MODEL", JINA_MODELS[0])
             reranked, err = jina_rerank(a.query, ranked, a.top_n,
@@ -976,6 +1137,7 @@ def main():
                                        max_attempts=1)
         else:
             reranked, err = jina_rerank(a.query, ranked, a.top_n)
+        rerank_ms = (time.perf_counter() - rerank_t0) * 1000.0
         if reranked is not None:
             ranked = reranked
         else:
@@ -1001,6 +1163,14 @@ def main():
     if a.fast:
         health["fast"] = {"budget_secs": a.budget_secs,
                           "min_sources": fast_min_sources}
+    # observability (--json only; markdown output stays unchanged)
+    health["latency_ms"] = {e: int(round(ms))
+                            for e, ms in sorted(timings.items())}
+    health["timing"] = {"recall_ms": int(round(recall_ms)),
+                        "rerank_ms": int(round(rerank_ms)),
+                        "dedupe_ms": int(round(dedupe_ms))}
+    if cached:
+        health["cache_age_secs"] = int(round(cache_age))
     if a.json_out:
         print(json.dumps({
             "query": a.query,
@@ -1054,7 +1224,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-    if "--fast" in sys.argv:
+    if _FAST_MODE or "--fast" in sys.argv:
         # P1-1: non-daemon pool threads are join()ed at interpreter exit,
         # which would void the recall budget. Output is done: flush + go.
         sys.stdout.flush()
