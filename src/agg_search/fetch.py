@@ -255,7 +255,8 @@ def main():
                     help="skip the DeepSeek Fetch API rung in auto mode")
     ap.add_argument("--timeout", type=int, default=45)
     ap.add_argument("--out", default="json", choices=("json", "md"))
-    ap.add_argument("--text-limit", type=int, default=8000)
+    ap.add_argument("--text-limit", type=int, default=8000,
+                    help="characters of text kept per page (clamped 500..200000)")
     ap.add_argument("--proxy", default=None)
     ap.add_argument("--persist", action="store_true")
     ap.add_argument("--headful", action="store_true")
@@ -266,6 +267,7 @@ def main():
     ap.add_argument("--no-cache", action="store_true",
                     help="bypass the 15 min page cache")
     a = ap.parse_args()
+    a.text_limit = max(500, min(200000, a.text_limit))
 
     ok = blocked = False
     guarded = []

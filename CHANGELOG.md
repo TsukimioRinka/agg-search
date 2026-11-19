@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1] - 2026-11-19
+
+### Added
+
+- `agg-search-install --check`: verifies the client config parses, holds the
+  `agg-search` entry and that the runtime binary resolves (exit 1 with one
+  line per problem).
+
+### Fixed
+
+- Text shown to the model (fetched pages, fused titles/snippets) drops
+  zero-width and bidi-control characters, the usual hiding place for injected
+  instructions; MCP instructions state that page text is untrusted.
+- `--check` understands the list-form `command` used by OpenCode.
+
 ## [0.2.0] - 2026-11-19
 
 Agent-facing release: a modern MCP surface, an HTTP transport, and the

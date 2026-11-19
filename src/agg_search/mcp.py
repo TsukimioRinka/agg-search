@@ -117,7 +117,8 @@ FETCH_SCHEMA = {
                  "description": "Fetch rung. auto = DeepSeek API, then the "
                                 "static -> dynamic -> stealth container ladder."},
         "out": {"type": "string", "enum": ["json", "md"], "default": "json"},
-        "text_limit": {"type": "integer", "minimum": 500, "default": 8000,
+        "text_limit": {"type": "integer", "minimum": 500, "maximum": 200000,
+                       "default": 8000,
                        "description": "Characters of text kept per page."},
         "allow_private": {"type": "boolean", "default": False,
                           "description": "Allow loopback/private targets. Off "
