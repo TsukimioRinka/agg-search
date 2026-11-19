@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.0] - 2026-11-19
+
+### Added
+
+- Agent x domain catalog: `agg-search-install --catalog [--markdown]` emits
+  `catalog.json` and `docs/catalog.md`; Cursor/VS Code deeplinks carry
+  `AGG_SEARCH_PROFILE`, Claude Code/Codex commands add `--env`, and
+  non-general profiles register as `agg-search-academic|code|news` so
+  several domains coexist.
+- Profiles gain a `primary` engine and a `rerank_blend` factor. In `--fast`
+  mode the early return now waits for the primary engine (or the budget), so
+  a profile is never served by its secondary engines alone; `--json` reports
+  `engine_health.primary`.
+- Jina reranking blends with the RRF order for academic (0.4) and code (0.6)
+  profiles and requests the full relevance vector, so listwise scores no
+  longer drop the primary engine's candidates.
+- `docs/agent-tests.md`: isolated CLI-agent verification (MCP Inspector,
+  Codex, OpenCode, Claude Code, Gemini CLI, Antigravity CLI) with versions,
+  evidence and cleanup notes.
+
+### Changed
+
+- Measured domain precision@3 (3 queries per domain, general as control):
+  academic 4/9 -> 8/9, code 4/9 -> 7/9; methodology and caveats in
+  `docs/profiles.md`.
+
 ## [0.3.0] - 2026-11-19
 
 ### Added

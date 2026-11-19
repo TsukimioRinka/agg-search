@@ -87,6 +87,7 @@ PYTHONPATH=src python3 -m agg_search.search "query"
 | Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PROFILE` |
 | Claude Code / Codex | 一条 `mcp add` 命令，含 `--env` |
 | 其他客户端 | `agg-search-install -c <client> --profile <profile> --write` |
+| 实测记录 | [docs/agent-tests.md](docs/agent-tests.md)：6 个 CLI 客户端的接入结果 |
 
 非 `general` 画像注册为独立的 server 名（`agg-search-academic`、`agg-search-code`、`agg-search-news`），可以和默认的 `agg-search` 并存。
 

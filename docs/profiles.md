@@ -89,3 +89,27 @@ surfaced < 30                                             → multiplier = 1.0
 ## 为什么不是「自动学习排序」
 
 本地只有「读没读」这一个信号，没有相关性标注；用它做**引擎级**权重是稳的，用它直接改单条结果的排序容易过拟合。需要更细的调参时，`agg-search-eval record/sweep` 提供离线、可复现的 RRF 参数扫描（见 [reranking.md](reranking.md)）。
+
+## 领域微调实测（2026-11-19）
+
+方法：每个领域 3 条真实工程问句（学术：speculative decoding / RLHF reward hacking / diffusion distillation；工程：asyncio 取消 / sqlite WAL / rust 借用检查），
+`--fast --budget-secs 20 --no-cache --no-cooldown`，按 top-3 命中领域源（DOI/arXiv/NeurIPS/ACL 等；Stack Overflow/官方文档等）计分，同一台机器、同一批密钥，`general` 作为对照。
+
+| 领域 | general | 对应 profile | 提升 |
+|---|---|---|---|
+| academic | 4 / 9 | **8 / 9** | +4 |
+| code | 4 / 9 | **7 / 9** | +3 |
+
+两个调优来自这轮实测，而不是拍脑袋：
+
+1. **fast 模式的早退必须等主引擎**：`openalex`/`stack` 比 brave 慢，早期版本会在它们返回前就用次要引擎的结果收工，画像名存实亡。现在 profile 声明 `primary`，`--fast` 只有在主引擎出结果（或预算耗尽）后才提前返回；`engine_health.primary` 会报告主引擎状态。
+2. **Jina 精排与 RRF 按比例混合**：listwise 模型只看标题+摘要，会把「标题里正好有查询词」的通用网页排在论文/问答之前。`academic` 用 `blend=0.4`、`code` 用 `0.6`（1.0 = 旧的纯 Jina 排序），并且请求**全量**候选的分数再混合，否则 Jina 的 top-n 截断会先丢掉主引擎的候选。
+
+复现：
+
+```bash
+agg-search "speculative decoding draft model" --profile academic --json \
+  --fast --budget-secs 20 --no-cache --no-cooldown | jq '.results[].url'
+```
+
+局限：3 条问句、单机单日，指标是启发式域名匹配，不是人工相关性标注；`news` 没有做（缺少可自动判定的时效标签），`general` 的数字只作对照。
