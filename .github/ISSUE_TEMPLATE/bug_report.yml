@@ -1,0 +1,41 @@
+name: Bug report
+description: Something broke, degraded, or returned the wrong shape
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste API keys. Replace them with `<redacted>`.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `pip show agg-search`, or the commit SHA.
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command, including flags.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: Paste the output or `--json` body, with keys and personal paths redacted.
+    validations:
+      required: true
+  - type: input
+    id: engines
+    attributes:
+      label: Engines configured
+      description: Which keys were present (names only, never values).
+      placeholder: exa, brave, searxng

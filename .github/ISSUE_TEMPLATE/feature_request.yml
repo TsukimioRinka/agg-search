@@ -1,0 +1,31 @@
+name: Feature request
+description: A new engine, a ranking change, or an interface addition
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that the tool does not support?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Command shape, JSON fields, or engine behaviour you expect.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - new engine
+        - ranking / fusion
+        - fetch ladder
+        - MCP server
+        - CLI / output
+        - docs
+    validations:
+      required: true

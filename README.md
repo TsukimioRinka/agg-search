@@ -1,8 +1,17 @@
 # agg-search
 
+[![tests](https://github.com/TsukimioRinka/agg-search/actions/workflows/tests.yml/badge.svg)](https://github.com/TsukimioRinka/agg-search/actions/workflows/tests.yml)
+[![release](https://img.shields.io/github/v/release/TsukimioRinka/agg-search)](https://github.com/TsukimioRinka/agg-search/releases)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 多引擎并行召回 + RRF 融合 + Jina 精排的搜索工具链：**CLI + MCP server + 分层抓取**，宿主机零依赖（纯 Python 标准库）。
 
 A multi-engine search stack for agents: parallel recall across eight engines, RRF fusion, listwise reranking, optional query expansion and cited answers, plus a tiered fetcher. Ships as a CLI and an MCP server. Standard library only on the host.
+
+![agg-search terminal demo](docs/demo.svg)
+
+*真实一次运行的输出：7 个引擎返回结果，DeepSeek 因余额不足进入冷却、被跳过；空结果不阻塞其余引擎。*
 
 ---
 

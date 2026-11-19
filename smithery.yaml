@@ -1,0 +1,12 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: []
+    properties: {}
+  commandFunction: |-
+    (config) => ({
+      command: 'uvx',
+      args: ['--from', 'git+https://github.com/TsukimioRinka/agg-search', 'agg-search-mcp'],
+      env: {}
+    })
