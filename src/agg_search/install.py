@@ -169,13 +169,15 @@ def write_config(path, section, name, entry):
         if not isinstance(doc, dict):
             raise SystemExit("%s does not hold a JSON object" % path)
         backup = "%s.bak-%s" % (path, time.strftime("%Y%m%d-%H%M%S"))
-        shutil.copyfile(path, backup)
+        shutil.copy2(path, backup)  # keeps the original mode (0600 stays 0600)
+    mode = (os.stat(path).st_mode & 0o777) if os.path.exists(path) else 0o600
     _section_view(doc, section)[name] = entry
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     tmp = "%s.%d.tmp" % (path, os.getpid())
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
         f.write("\n")
+    os.chmod(tmp, mode)
     os.replace(tmp, path)
     return path
 

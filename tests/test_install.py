@@ -97,6 +97,16 @@ class WriteTest(unittest.TestCase):
         doc = json.loads(pathlib.Path(target).read_text(encoding="utf-8"))
         self.assertEqual(doc["mcp"]["servers"]["agg-search"]["type"], "local")
 
+    def test_preserves_file_mode_on_write_and_backup(self):
+        os.chmod(self.path, 0o600)
+        install.write_config(self.path, ("mcpServers",), "agg-search",
+                             {"command": "uvx"})
+        self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o600)
+        for name in os.listdir(self.tmp.name):
+            if ".bak-" in name:
+                backup = os.path.join(self.tmp.name, name)
+                self.assertEqual(os.stat(backup).st_mode & 0o777, 0o600)
+
 
 class CliTest(unittest.TestCase):
     def test_env_parsing_reaches_entry(self):
