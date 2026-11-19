@@ -90,15 +90,17 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 
 服务用换行分隔的 JSON-RPC 2.0，`initialize` / `tools/list` / `tools/call` / `ping` 都已实现，可直接挂到 MCP 客户端。
 
-## 同名项目对比
+## 同类项目对比
 
-| 项目 | 语言 | 特点 | 与本项目的差别 |
+只列能核实的能力，语言一列仅在仓库自述里明确时填写：
+
+| 项目 | 栈 | 它强在哪 | 与本项目的差别 |
 |---|---|---|---|
-| [search-cli](https://github.com/paperfoot/search-cli) | Rust | 13 个 provider，单一二进制 | 这是 Python、无编译；多了容器抓取阶梯与 DeepSeek Fetch |
-| [web-search-mcp](https://github.com/charley-forey/web-search-mcp) | Python | 多 provider + 重排 + SSRF 安全抓取 + eval | 这里的抓取走隔离容器与 DeepSeek 服务端；补充了查询扩展 |
-| [argo](https://github.com/taxueseek/argo) | — | 300+ 来源、18 语言、MCP/CLI | 本项目只做通用网页检索，但排序链路与成本控制更细 |
-| [websearch-mcpserver](https://github.com/daidaiJ/websearch-mcpserver) | Go | 零 key、多引擎 + 学术源 | 本项目按 key 选择性启用引擎，不承诺零 key |
-| [free-search-api](https://github.com/Ethos6/free-search-api) | Python | 自托管、无 key、Tavily 兼容 | 本项目是客户端编排层，不提供兼容 API |
+| [search-cli](https://github.com/paperfoot/search-cli) | Rust | 13 个 provider，单一二进制 | 本项目免编译；多容器抓取阶梯与 DeepSeek Fetch 是一等路径 |
+| [web-search-mcp](https://github.com/charley-forey/web-search-mcp) | TypeScript | SSRF 安全抓取、注入防御（`<untrusted_content>` 包裹 + 隐藏字符剥离）、PDF/RSS/YouTube 抽取、本地语义重排、Recall@5 / MRR@10 评测、MCP resources/prompts | 它的抓取安全与内容抽取比本项目完整；本项目的差异在 8 引擎并行 + RRF→Jina listwise 两阶段排序、DeepSeek Search/Fetch、RAG-Fusion 扩展与容器化的静态→动态→反爬阶梯 |
+| [argo](https://github.com/taxueseek/argo) | — | 300+ 来源、18 语言、MCP/CLI | 本项目只做通用网页检索，覆盖面窄；差异在排序链路与成本控制更细 |
+| [websearch-mcpserver](https://github.com/daidaiJ/websearch-mcpserver) | Go | 零 key 可跑、多引擎 + 学术源 | 本项目按 key 选择性启用引擎，不承诺零 key |
+| [free-search-api](https://github.com/Ethos6/free-search-api) | — | 自托管、无 key、Tavily 兼容端点 | 本项目是客户端编排层，不提供兼容 API |
 
 ## 测试
 
