@@ -50,7 +50,8 @@ RRF_K = 60
 JINA_MODELS = ("jina-reranker-v3.5", "jina-reranker-v3",
                "jina-reranker-v2-base-multilingual")
 # --- resilience layer (incremental, default behavior unchanged) ---
-CACHE_DIR = os.path.expanduser("~/.cache/agg-search")
+CACHE_DIR = os.environ.get("AGG_SEARCH_CACHE_DIR",
+                           os.path.expanduser("~/.cache/agg-search"))
 CACHE_PATH = os.path.join(CACHE_DIR, "results_cache.json")
 COOLDOWN_PATH = os.path.join(CACHE_DIR, "cooldown.json")
 CACHE_TTL = 300  # 5min LRU, mirrors dsh-free-search
