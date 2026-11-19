@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.3.0] - 2026-11-19
+
+### Added
+
+- Domain profiles (`general`, `academic`, `code`, `news`): a profile sets the
+  engine set, RRF weight overrides, default recency and snippet length.
+  `--profile`, `--list-profiles`, MCP `profile`, `AGG_SEARCH_PROFILE`, and
+  `agg-search-install --profile` to pin a client. Precedence is
+  flag > env > profile > built-in.
+- Three keyless domain engines: `openalex` (works + reconstructed abstracts,
+  optional `OPENALEX_API_KEY`/`OPENALEX_MAILTO`), `hn` (Algolia) and `stack`
+  (Stack Exchange, optional `STACKEXCHANGE_SITE`/`STACKEXCHANGE_KEY`).
+- Local feedback loop: `search` records which engines surfaced each returned
+  URL, `fetch` records pages actually read, and `agg-search-tune` turns the
+  counts into clamped engine-weight multipliers (Bayesian shrinkage, samples
+  under 30 keep 1.0) stored in `~/.config/agg-search/weights.json`. Weights
+  participate in the cache key; `--no-learn`/`AGG_SEARCH_NO_LEARN` disable it.
+  Only hashes and counters are stored — no queries, page text or raw URLs.
+- `--show-config` reports the resolved profile, effective weights and learned
+  multipliers.
+
+### Changed
+
+- Engine weights are always passed to fusion, so profile and learned weights
+  apply to single-query searches too (the `general` profile keeps the old
+  defaults: 1.0 per engine, 0.5 for searxng).
+
 ## [0.2.1] - 2026-11-19
 
 ### Added

@@ -26,9 +26,13 @@ triggers:
 客户端已接入 MCP 时优先用工具 `search` / `fetch`（stdio 或 HTTP，协议 2025-06-18，参数与下表一一对应）；没有 MCP 时用 CLI：
 
 ```bash
-agg-search "<query>" [--top-n 10] [--recency day|week|month|year] [--no-jina] [--expand N] [--answer [deepseek]] [--json] [--fast] [--budget-secs 30] [--engine-timeout 25] [--include-domains arxiv.org,.edu] [--exclude-domains reddit.com] [--snippet-chars 400] [--no-cache] [--no-cooldown] [--no-diversify] [--engines exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng]
+agg-search "<query>" [--top-n 10] [--recency day|week|month|year] [--profile general|academic|code|news] [--no-jina] [--expand N] [--answer [deepseek]] [--json] [--fast] [--budget-secs 30] [--engine-timeout 25] [--include-domains arxiv.org,.edu] [--exclude-domains reddit.com] [--snippet-chars 400] [--no-cache] [--no-cooldown] [--no-diversify] [--engines exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng,openalex,hn,stack]
 agg-search --show-config      # 生效配置 + 各引擎密钥是否就绪（只输出布尔值）
+agg-search --list-profiles    # 领域画像：引擎组合 + 权重 + 默认时效
 ```
+- **领域画像**：`--profile academic` 用 OpenAlex 等学术源并把权重前移；`code` 走 Stack Exchange；`news` 默认 1 天窗口。优先级 flag > `AGG_SEARCH_*` > profile > 默认，MCP 调用可逐次覆盖。
+- **本地反馈**：`search` 记录引擎召回、`fetch` 记录真正读过的页面，`agg-search-tune` 折算成 0.5–2.0 的权重乘数；`--no-learn` 关闭。
+
 或直接用模块方式执行（无需安装）：
 ```bash
 python3 -m agg_search.search "<query>" [--top-n 10]

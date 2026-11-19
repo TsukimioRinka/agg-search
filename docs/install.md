@@ -1,13 +1,16 @@
 # 安装与环境变量
 
-本项目是纯 Python 3.10+ 标准库实现，没有第三方运行时依赖。包在 PyPI 上是 `agg-search`，提供四个命令：
+本项目是纯 Python 3.10+ 标准库实现，没有第三方运行时依赖。包在 PyPI 上是 `agg-search`，提供七个命令：
 
 | 命令 | 作用 |
 |---|---|
-| `agg-search` | CLI：多引擎并行召回 + RRF + Jina 精排 |
+| `agg-search` | CLI：多引擎并行召回 + RRF + Jina 精排（`--profile` 选领域画像） |
 | `agg-search-mcp` | stdio MCP server（`search` / `fetch` 两个工具） |
+| `agg-search-http` | streamable HTTP MCP 端点（多客户端共用） |
 | `crawl-fetch` | 分层正文抓取（DeepSeek Fetch → 容器阶梯） |
-| `agg-search-eval` | 检索质量评测 |
+| `agg-search-install` | 生成/写入各客户端配置，`--check` 自检 |
+| `agg-search-tune` | 把本地反馈折算成引擎权重乘数 |
+| `agg-search-eval` | 检索质量评测（离线 RRF 参数扫描） |
 
 ## 安装
 

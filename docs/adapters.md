@@ -36,6 +36,17 @@ uvx --from agg-search agg-search-mcp
 
 密钥统一由服务进程的环境变量读取，表格见 [install.md](install.md)。**GUI 客户端（Claude Desktop、Windsurf、Antigravity App）不继承 shell 环境**，要么在客户端配置的 `env` 字段里写，要么把 key 放进 `~/.config/agent-env`（服务端自己会读）。
 
+### 按领域固定搜索策略
+
+每个客户端可以钉在某个领域画像上（`general` / `academic` / `code` / `news`），写入的是 `AGG_SEARCH_PROFILE` 环境变量，不需要改任何代码：
+
+```bash
+agg-search-install -c cursor --profile code --write      # Cursor 固定走代码画像
+agg-search-install -c claude-code --profile academic     # 打印带 env 的注册命令
+```
+
+已接入的客户端也可以在单次调用里覆盖：MCP 工具参数 `profile`。画像内容与优先级见 [profiles.md](profiles.md)。
+
 ---
 
 ## Claude Code

@@ -7,7 +7,7 @@
 
 多引擎并行召回 + RRF 融合 + Jina 精排的搜索工具链：**CLI + MCP server（stdio/HTTP）+ 分层抓取**，宿主机零依赖（纯 Python 标准库）。
 
-A multi-engine search stack for agents: parallel recall across eight engines, RRF fusion, listwise reranking, optional query expansion and cited answers, plus a tiered fetcher. Ships as a CLI and an MCP server — stdio, or streamable HTTP — with standard library only on the host.
+A multi-engine search stack for agents: parallel recall across eleven engines (three of them keyless domain sources), RRF fusion, listwise reranking, domain profiles, a local feedback loop, plus a tiered fetcher. Ships as a CLI and an MCP server — stdio, or streamable HTTP — with standard library only on the host.
 
 ![agg-search terminal demo](docs/demo.svg)
 
@@ -17,13 +17,14 @@ A multi-engine search stack for agents: parallel recall across eight engines, RR
 
 ## 为什么又一个搜索聚合器
 
-同类项目不少，但多数是「多引擎 + 简单合并」或「零 key 依赖单一索引」。这个项目的差异在五件事：
+同类项目不少，但多数是「多引擎 + 简单合并」或「零 key 依赖单一索引」。这个项目的差异在六件事：
 
 1. **DeepSeek 搜索/抓取是一等公民** —— 官方 `/v1/tools/search` 自带 `rerank_score`，`/v1/tools/fetch` 服务端取页直接给 Markdown，省掉容器。
 2. **抓取是阶梯而不是一个函数** —— DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
 3. **排序是两阶段** —— RRF 粗排前 15，再交给 Jina Reranker v3.5 listwise 精排；模型不可用链式回退 v3 → v2，全失败则保留 RRF 顺序，绝不阻塞。
 4. **韧性层是显式的** —— 5 分钟结果缓存 + 15 分钟页面缓存、按错误类型分级的冷却（额度 1h / 反爬 10min / 超时 90s）、引擎健康与延迟上报，缺 key 的引擎提前剔除不占线程。
 5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、13 家客户端的配置生成器。
+6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
 
 ## 架构
 
@@ -48,7 +49,10 @@ flowchart LR
   Q --> F[anysearch]
   Q --> G[tavily]
   Q --> Hh[searxng]
-  A & B & C & D & E & F & G & Hh --> R[RRF fusion<br/>top 15]
+  Q --> OA[openalex]
+  Q --> HN[hn]
+  Q --> ST[stack]
+  A & B & C & D & E & F & G & Hh & OA & HN & ST --> R[RRF fusion<br/>profile weights ×<br/>learned multipliers]
   R --> J[jina rerank v3.5<br/>fallback v3 → v2]
   J --> O[top N results<br/>+ provenance + health]
   O --> AN[optional cited answer]
@@ -104,7 +108,7 @@ agg-search --help
 crawl-fetch --url https://example.com/post --tier auto --out md
 ```
 
-密钥只从环境变量读（也兼容 `~/.config/agent-env`、`~/.config/ai-keys.env` 的 `KEY=` 行）。缺失的引擎会被跳过，不会让整次搜索失败。常用默认值可用 `AGG_SEARCH_ENGINES`、`AGG_SEARCH_TOP_N`、`AGG_SEARCH_PER_ENGINE`、`AGG_SEARCH_SNIPPET_CHARS`、`AGG_SEARCH_FAST`、`AGG_SEARCH_NO_JINA` 覆盖，命令行显式传参优先。完整变量表见 [docs/environment.md](docs/environment.md)。
+密钥只从环境变量读（也兼容 `~/.config/agent-env`、`~/.config/ai-keys.env` 的 `KEY=` 行）。缺失的引擎会被跳过，不会让整次搜索失败。常用默认值可用 `AGG_SEARCH_ENGINES`、`AGG_SEARCH_TOP_N`、`AGG_SEARCH_PER_ENGINE`、`AGG_SEARCH_SNIPPET_CHARS`、`AGG_SEARCH_FAST`、`AGG_SEARCH_NO_JINA`、`AGG_SEARCH_PROFILE`、`AGG_SEARCH_NO_LEARN` 覆盖，命令行显式传参优先。完整变量表见 [docs/environment.md](docs/environment.md)。
 
 ## MCP server
 
@@ -112,7 +116,7 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 
 | 工具 | 主要参数 | 说明 |
 |---|---|---|
-| `search` | `query`、`top_n`、`recency`、`engines`、`include_domains`、`exclude_domains`、`snippet_chars`、`expand`、`answer`、`fast`、`budget_secs`、`engine_timeout`、`no_jina` | 并行召回 + RRF + 精排；返回文本内容 + `structuredContent` |
+| `search` | `query`、`top_n`、`recency`、`engines`、`profile`、`include_domains`、`exclude_domains`、`snippet_chars`、`expand`、`answer`、`fast`、`budget_secs`、`engine_timeout`、`no_jina` | 并行召回 + RRF + 精排；返回文本内容 + `structuredContent` |
 | `fetch` | `urls`、`tier`、`out`、`text_limit`、`allow_private` | 分层抓取正文；每 URL 一条结果 |
 
 协议行为：
@@ -142,6 +146,32 @@ agg-search-http --host 127.0.0.1 --port 8765 --path /mcp
 ```
 
 多个客户端共用一个进程（共享缓存与冷却），默认只绑回环并校验 `Host`/`Origin`（防 DNS rebinding 与浏览器跨站请求），端点不带认证——对外必须先套反向代理。协议细节与 nginx 示例见 [docs/http.md](docs/http.md)。
+
+## 领域定向与每 agent 策略
+
+```bash
+agg-search "speculative decoding" --profile academic   # openalex 优先，摘要 500 字，top 15
+agg-search "sqlite wal corrupt" --profile code         # stack 优先，摘要 600 字
+agg-search "release notes" --profile news --top-n 5    # 默认 recency=day
+agg-search --list-profiles
+
+agg-search-install -c cursor --profile code --write    # 把某个客户端钉在 code 画像上
+```
+
+同一套数据也通过 MCP 暴露：工具参数 `profile`，或环境变量 `AGG_SEARCH_PROFILE`。优先级 **flag > env > profile > 内置默认**；`openalex` / `hn` / `stack` 三个新引擎全部免 key，装好就能用。
+
+### 反馈回路
+
+`search` 记录每个结果由哪些引擎召回，`fetch` 成功读到其中某个 URL 时记一次「被使用」。
+`agg-search-tune` 把 surfaced/used 折算成 0.5–2.0 的引擎权重乘数（样本少于 30 时保持 1.0），
+之后所有搜索自动叠加，并进入缓存键——调权重不会命中旧结果。默认开启，`--no-learn` 或 `AGG_SEARCH_NO_LEARN=1` 关闭。
+
+```bash
+agg-search-tune --show   # 反馈表 + 当前乘数
+agg-search-tune          # 写入 ~/.config/agg-search/weights.json
+```
+
+只存哈希与计数，不存查询词、页面正文或原始 URL。机制与公式见 [docs/profiles.md](docs/profiles.md)。
 
 ## 同类项目对比
 
@@ -181,6 +211,7 @@ python3 -m unittest discover -s tests -v
 | [docs/install.md](docs/install.md) | 安装方式、环境变量全表、冒烟测试 |
 | [docs/adapters.md](docs/adapters.md) | 13 家客户端的接入配置 |
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
+| [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
 | [docs/fetching.md](docs/fetching.md) | 分层抓取的梯子与容器 |
 | [docs/reranking.md](docs/reranking.md) | RRF 与 Jina 精排、参数扫描 |
 | [docs/environment.md](docs/environment.md) | 环境变量与计费说明 |

@@ -12,6 +12,10 @@
 | `DEEPSEEK_API_KEY` | DeepSeek 官方 Search/Fetch API（搜索引擎 + 抓取第 0 级；`~/.config/ai-keys.env`） | 否，缺失即跳过 |
 | `DEEPSEEK_BASE_URL` | DeepSeek API 基址，默认 `https://api.deepseek.com` | 否 |
 | `SEARXNG_URL` | 本地 SearXNG，默认 `http://127.0.0.1:8080` | 否 |
+| `OPENALEX_API_KEY` | OpenAlex 学术检索的 key（免 key 也能用，额度按 IP 共享） | 否 |
+| `OPENALEX_MAILTO` | OpenAlex polite pool 邮箱（更高优先级/额度） | 否 |
+| `STACKEXCHANGE_SITE` | Stack Exchange 站点，默认 `stackoverflow`（可换 `serverfault`、`askubuntu` 等） | 否 |
+| `STACKEXCHANGE_KEY` | Stack Exchange key（免 key 每日 300 次/IP） | 否 |
 | `JINA_API_KEY` | Jina Reranker v3.5 精排（listwise；链式回退 v3 → v2）；缺失即降级 RRF | 否 |
 | `JINA_RERANK_MODEL` | 覆盖精排模型（默认 `jina-reranker-v3.5`；408/429/5xx 自动重试一次） | 否 |
 | `OLLAMA_URL` | 本地 ollama 基址，`--expand` 查询改写用（默认 `http://127.0.0.1:11434`） | 否 |
@@ -19,7 +23,10 @@
 | `ANSWER_MODEL` | `--answer` 本地答案模型（默认 `qwen3.5:9b`） | 否 |
 | `ANSWER_DS_MODEL` | `--answer deepseek` 的 chat 模型（默认 `deepseek-flash`，`thinking:disabled`） | 否 |
 | `CRAWL_PROXY` | 抓取容器出网代理（如 `http://127.0.0.1:7897`，需同时加 `--host-net`），`NO_PROXY="*"` 强制直连（优先级最高），其余回落 `HTTPS_PROXY` | 否 |
-| `AGG_SEARCH_CACHE_DIR` | 覆盖缓存根目录（默认 `~/.cache/agg-search`；结果缓存、冷却状态、页面缓存都在这里） | 否 |
+| `AGG_SEARCH_CACHE_DIR` | 覆盖缓存根目录（默认 `~/.cache/agg-search`；结果缓存、冷却状态、页面缓存、反馈计数都在这里） | 否 |
+| `AGG_SEARCH_CONFIG_DIR` | 覆盖调优权重目录（默认 `~/.config/agg-search`，`weights.json` 在此） | 否 |
+| `AGG_SEARCH_PROFILE` | 默认领域画像：`general` / `academic` / `code` / `news`（显式 `--profile` 优先） | 否 |
+| `AGG_SEARCH_NO_LEARN` | `1/true/yes` 关闭反馈读写（等价 `--no-learn`） | 否 |
 | `AGG_SEARCH_ENGINES` | 默认引擎列表（逗号分隔；显式 `--engines` 优先） | 否 |
 | `AGG_SEARCH_TOP_N` | 默认返回条数 | 否 |
 | `AGG_SEARCH_PER_ENGINE` | 每引擎召回条数 | 否 |
