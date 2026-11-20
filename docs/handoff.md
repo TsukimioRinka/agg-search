@@ -8,9 +8,9 @@
 |---|---|
 | 本机工作仓库 | `~/projects/agg-search`（git，分支 `main`；2026-11-19 从 `/tmp/agg-search-pub` 迁来，旧路径已不存在） |
 | GitHub 仓库 | https://github.com/TsukimioRinka/agg-search |
-| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v0.6.0`） |
+| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v0.7.0`） |
 | CI | https://github.com/TsukimioRinka/agg-search/actions（tests 3.10–3.13 + ruff，publish 已钉 SHA） |
-| PyPI | https://pypi.org/project/agg-search/（最新 `0.6.0`） |
+| PyPI | https://pypi.org/project/agg-search/（最新 `0.7.0`） |
 | MCP Registry 条目 | `https://registry.modelcontextprotocol.io/v0/servers/io.github.TsukimioRinka%2Fagg-search/versions` |
 | 下载门类（人读/机读） | 仓库 `docs/catalog.md` 与 `catalog.json` |
 | 门户隔离（人读/机读） | 仓库 `docs/portals.md` 与 `portals.json`（56 个 `agent × domain`） |
@@ -30,9 +30,9 @@
 
 ## 2. 当前状态（2026-11-20）
 
-- 版本 `0.6.0`，248 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
-- PyPI `0.6.0`；MCP Registry `0.6.0 active`（0.5.3 及更早已 deprecated）；GitHub `v0.6.0`。
-- 能力面：CLI + stdio MCP（2025-06-18）+ streamable HTTP、4 个领域画像、3 个免 key 引擎（openalex/hn/stack）、56 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
+- 版本 `0.7.0`，261 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
+- PyPI `0.7.0`；MCP Registry `0.7.0 active`（0.6.0 及更早已 deprecated）；GitHub `v0.7.0`。
+- 能力面：CLI + stdio MCP（2025-06-18）+ streamable HTTP、4 个领域画像、4 个免 key 引擎（openalex/hn/stack/arxiv）、2 个新闻垂直引擎（brave_news/serper_news，复用原 key）、56 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
 - 安全面（延续 0.4.1 审计）：元数据无条件拦截、3xx 拒绝、容器内最终 URL 复检、`allow_private`/`allow_cidrs` 只允许服务端环境变量、引擎响应 4 MiB 上限、Markdown 转义与控制字符剥离、HTTP 拒绝重复 Content-Length/CL+TE 且有 30s 超时与 64 连接上限、MCP 在飞调用上限 16；非门户工具调用（如 `code` 门户调 `answer`）返回 JSON-RPC `-32602`。
 
 ## 3. 逐层验证（按顺序，全部离线优先）
@@ -40,7 +40,7 @@
 ```bash
 cd ~/projects/agg-search
 uv venv .venv && VIRTUAL_ENV=$PWD/.venv uv pip install -e .
-.venv/bin/python -m unittest discover -s tests -v     # 期望 248 OK
+.venv/bin/python -m unittest discover -s tests -v     # 期望 261 OK
 ruff check --select F,E9,I001 src tests                # 期望无输出
 ```
 
@@ -115,7 +115,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 ## 6. 给下一个检查者的最小清单
 
 - [ ] `git -C ~/projects/agg-search status` 干净，HEAD 与 `git ls-remote origin main` 一致。
-- [ ] 248 测试 + ruff 通过（第 3 节命令）。
+- [ ] 261 测试 + ruff 通过（第 3 节命令）。
 - [ ] `portals.json` / `docs/portals.md` / `catalog.json` / `docs/catalog.md` 四者同步（`test_portals.py` 已校验）。
 - [ ] `crawl-fetch https://example.com` 返回 200（验证 agent-env 的 CIDR 行生效）。
 - [ ] 元数据 URL 被 blocked；MCP 参数 `allow_private:true` 不生效。

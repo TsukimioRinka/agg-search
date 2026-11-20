@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0] - 2026-11-20
+
+Domain refinements for news, academic and code, each gated by an offline A/B
+(see `docs/benchmarks.md`, candidate G).
+
+### Added
+
+- `brave_news` and `serper_news` engines: the news verticals of the existing
+  providers (same keys, same request count). Snippets start with the
+  provider's publication date, e.g. `[2026-11-20]`.
+- `arxiv` keyless engine (Atom API, stdlib XML, DTDs refused). It ANDs the
+  Latin-script terms of the query; a CJK-only query is a healthy empty result
+  without a request. Not in the default engine set.
+
+### Changed
+
+- `news` profile: `brave_news, serper_news, tavily, firecrawl` with
+  `rerank_blend=0.3`. On 10 queries (local qwen grading) news reports in the
+  top 5 went from 25/50 to 42/50 and items under 72 hours old from 7/50 to
+  50/50. Use `--engines brave,serper,...` for the previous behaviour.
+- `academic` portal keyless fallback: `openalex, arxiv, searxng`. With
+  openalex down and no paid keys, nDCG@10 0.544 -> 0.830.
+- `code` portal keyless fallback: `stack, searxng, hn`. With stack down and
+  no paid keys, nDCG@10 0.035 -> 0.253.
+
+### Rejected after evaluation
+
+- Stripping CJK from mixed queries before `stack`, a wider `code` authority
+  list, `arxiv` on the healthy academic path, and web + news verticals together.
+
 ## [0.6.0] - 2026-11-20
 
 Structured fetch failures and stricter portal checks.
