@@ -207,6 +207,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 第 17 轮 `feat(mcp)`：MCP prompts，每个门户一个研究流程提示，只列该门户启用的工具，跨门户取不到。stdio 与 HTTP 都已实测。
 - 第 18 轮（拒绝，未写代码）：新闻按需追加垂直端点。日期字段分不出「报道」和「近期更新过的百科/帮助页」，没有可靠触发信号（候选 L）。
 - 第 19 轮 SearXNG `360search` 复测：重启前单独可用，重启后（无论配置）都失效；配置已回滚并与原文件逐字节一致（候选 K 复测）。SearXNG 的所有默认上游仍被封禁，根因是出口代理 IP 被限流，不是 agg-search 的问题。**不要再尝试换上游**；可行的办法是换出口 IP 或等封禁过期。
+- 本机回落 0.9.0 → 0.10.0；三门户握手 0.10.0、工具 2/3/2、prompts 分别为 `general-research`/`academic-research`/`code-research`；元数据 exit 3；example.com 200；`--check` ok；无痕 OMP 会话返回真实 DOI。回滚备份 `~/.omp/agent/backups/mcp.json.20261121-004430`；回滚命令 `uv tool install --force agg-search==0.9.0`。
 - 下一轮优先：(1) 隔天确认 SearXNG 是否自然恢复（只读 `curl`）；(2) 用 `eval-offline.sh` 录制问句型新闻查询（第三种类型）补全候选 J 的覆盖；(3) 在支持 MCP prompts 的 CLI 客户端（隔离 HOME）里实测斜杠命令展示。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
