@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.0.0] - 2026-11-21
+
+First stable release. The public surface is now covered by SemVer: see
+`docs/stability.md` for what is stable (command names, CLI flags, `--json`
+fields, `crawl-fetch` output and exit codes, MCP tools/prompts/protocols,
+profile/portal/engine names, environment variables, security behaviour) and
+what may change in minor versions (ranking and quality parameters, chosen by
+the evaluations in `docs/benchmarks.md`).
+
+### Highlights since 0.5
+
+- Stdlib-only CLI + stdio/HTTP MCP server, 14 engines (4 keyless), 4 domain
+  profiles and 56 `agent x domain` portals with isolated tool sets and
+  prompts.
+- Structured fetch failures (`error_class`), honest SearXNG health, portal
+  binding checks, keyless fallbacks per domain (`arxiv` for academic,
+  `searxng` for code), opt-in Stack Exchange multi-site and news verticals.
+- A reproducible offline A/B harness (`agg-search-eval judge/compare`,
+  `tools/eval-offline.sh`) behind every default change; one change (0.7.0
+  news default) was measured wrong and reverted in 0.9.0.
+
+### Fixed (pre-1.0 review)
+
+- All CLIs run again as plain scripts from a checkout (the `--version` import
+  broke this).
+- `agg-search-install --client opencode --portal X --check` understands
+  OpenCode's config shape; a `--portal` argument wins over the environment,
+  as in the server.
+- SearXNG "upstreams unresponsive" always cools down; its decision no longer
+  reads a shared global across threads.
+- Multi-site Stack Exchange respects the `--fast` deadline and reports
+  failing sites (`ok (N); partial: ...`) instead of hiding them.
+- Keyless fallbacks skip engines that are cooling, and fallback failures
+  start a cooldown.
+- `prompts/get` returns `-32602` for non-object arguments and for topics that
+  are empty after sanitising.
+- `agg-search-eval`: clear errors when every engine is cooling or a variant
+  mixes `+/-` edits with a plain engine list.
+
+### Changed
+
+- Release builds install hash-pinned tooling and build with
+  `--no-isolation`; Dependabot keeps the pinned actions and tooling current.
+- Package metadata: `Development Status :: 5 - Production/Stable`, Python
+  3.10-3.13 classifiers, Changelog and Issues links.
+
 ## [0.10.0] - 2026-11-21
 
 MCP prompts.
