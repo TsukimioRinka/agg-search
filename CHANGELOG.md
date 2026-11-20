@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.0] - 2026-11-20
+
+Correct the 0.7.0 news default after a wider evaluation; Stack Exchange
+multi-site opt-in.
+
+### Changed
+
+- **`news` profile is back on the web endpoints** (`brave, serper, tavily,
+  firecrawl`, pure Jina rerank). 0.7.0's vertical-only default came from 10
+  entity-name queries; two more sets of 16 event queries reversed it (42-query
+  weighted nDCG@10: web 0.806, 0.7.0 default 0.776). `brave_news` and
+  `serper_news` stay as engines; adding them on top of the web endpoints
+  scored 0.836 for +2 paid requests and is opt-in via `--engines`.
+- `agg-search-eval judge` tells the grader the fixture's recording date; the
+  `news` rubric ("reports from the last few days") was being judged blind.
+
+### Added
+
+- `STACKEXCHANGE_SITE` accepts a comma list (max 4, validated), e.g.
+  `stackoverflow,unix,serverfault`: parallel requests interleaved rank by rank;
+  one failing site does not fail the engine. Opt-in because each site is one
+  more request against the 300/day keyless quota; with no paid keys it raised
+  code nDCG@10 from 0.303 to 0.420.
+
+### Evaluated, not changed
+
+- Local SearXNG upstreams (`360search`): rolled back, results not reproducible
+  while upstreams were banned (`docs/benchmarks.md`, candidate K).
+
 ## [0.8.0] - 2026-11-20
 
 Honest SearXNG health and a reusable offline A/B harness.

@@ -229,3 +229,23 @@
 **结论**：`news` 默认恢复为 web 端点、纯 Jina（不增加成本，42 条上优于 0.7.0）。并用方案质量最好，但每次多 2 个付费请求，按门禁降为 opt-in：`--engines brave,serper,tavily,firecrawl,brave_news,serper_news`。候选 G 中学术、代码的改动只影响降级补召路径，不受影响，保留。
 
 **教训**：单一类型、10 条量级的领域集不足以改默认。下次改默认前，每个领域至少两批、覆盖不同查询类型（实体名/事件/问句）。数据保存在 `~/.cache/agg-search/eval/news-set2-20261120.*`（第 3 批同目录 `news-set3-*`），可直接 `agg-search-eval compare` 复跑。
+
+---
+
+## 候选 K：本机 SearXNG 上游调整（2026-11-20，**已回滚，未定论**）
+
+本机 SearXNG 用默认配置，通用类启用的上游是 `brave`、`duckduckgo`、`google cse`、`wikipedia`、`wikidata`。逐个探测（每个引擎 2 条查询）：`bing`、`mwmbl`、`google cse`、`360search` 有结果；`google`、`qwant`、`yep` access denied，`yahoo` HTTP error，`baidu` 解析错误，`duckduckgo` CAPTCHA，`brave` 429。
+
+16 条通用查询（8 英 8 中），通过 SearXNG 的 `engines=` 参数逐组录制，qwen `general` 标准分级：
+
+| 上游组合 | 非空 | qwen nDCG@10 | 2 分@5 |
+|---|---|---|---|
+| 当前默认（第 1 遍） | 9/16 | 0.382 | 44/80 |
+| 当前默认（约 10 分钟后第 2 遍） | **0/16** | 0.000 | 0/80 |
+| 只用 `bing` | 9/16 | 0.101 | 9/80 |
+| `bing, google cse, 360search` | 16/16 | 0.579 | 51/80 |
+| **当前默认 + `360search`** | 15/16 | **0.673** | **57/80** |
+
+`bing` 单独质量很差（夹带无关的日文问答页），不考虑。按数据在 `settings.yml` 末尾追加 `engines: [{name: 360search, disabled: false}]` 并重启容器（已获用户同意，改前在容器内备份）。重启后 6 条验证查询 **0/6**：所有默认上游仍在封禁期，`360search` 也返回 0 条且不报错（同一出口代理访问 `so.com` 返回 302）。按止损标准立即回滚：恢复原文件（`cmp` 逐字节一致）、重启、确认 `360search` 回到 disabled，然后删除那份与原文件一致的备份。
+
+**结论**：上游可用性在几分钟内大幅波动（SearXNG 的 `ban_time_on_fail` 为 300 s、上限 3600 s，叠加出口代理 IP 被各站限流），当晚又有大量评测流量，无法稳定复现收益，**不改配置**。agg-search 侧的 0.8.0 已能把「全部上游被封」正确报告为失败并冷却。若要重试：等封禁过期（建议隔天、评测流量停止后），先用 `engines=` 参数复测 `360search` 是否稳定返回，再改配置。
