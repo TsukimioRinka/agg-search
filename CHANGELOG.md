@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.8.0] - 2026-11-20
+
+Honest SearXNG health and a reusable offline A/B harness.
+
+### Added
+
+- `agg-search-eval judge`: grade every pooled result once, with local Ollama
+  (`--judge qwen`, 0/1/2 per domain rubric, free) or Jina scores
+  (`--judge jina`). Resumable; the news date prefix is stripped first.
+- `agg-search-eval compare`: replay profile variants offline through the real
+  fusion path (weights, authority prior, dedupe, diversify, rerank blend) with
+  graded nDCG@10, best-grade@5, domains@10 and wins/losses vs the baseline.
+- `tools/eval-offline.sh QUERIES PROFILE RUBRIC [VARIANT...]` chains
+  record -> judge -> compare and reuses fixtures and grades.
+
+### Fixed
+
+- SearXNG returning zero rows because its upstreams are suspended or
+  CAPTCHA'd is now a failure (cooled down as `antibot`), not a healthy empty
+  result. The CLI no longer says "query too narrow" in that case.
+- `agg-search-eval record` skips engines that are cooling
+  (`--ignore-cooldown` to override) and accepts `--recency`.
+
+### Evaluated, no change
+
+- `general` on 20 Chinese queries: current defaults are best or tied; content
+  dedupe merged 11 pairs with 0 false merges (`docs/benchmarks.md`, candidate H).
+
 ## [0.7.0] - 2026-11-20
 
 Domain refinements for news, academic and code, each gated by an offline A/B
