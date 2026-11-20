@@ -199,6 +199,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 第 14 轮 `feat(stack)`：`STACKEXCHANGE_SITE` 支持逗号列表（opt-in）。有付费引擎时无增益；只有 stack 时 nDCG 0.303 → 0.420（候选 I）。
 - 第 15 轮 **撤回 0.7.0 的新闻默认**：两批新查询（各 16 条，事件型）上 0.7.0 默认明显变差，42 条加权 web 0.806 vs 0.776（候选 J）。同时修了 `judge` 提示词缺参照日期的问题。教训：改默认前每个领域至少两批、覆盖不同查询类型。评测数据保存在 `~/.cache/agg-search/eval/`（news-set2/3、code-sites），可直接 `agg-search-eval compare` 复跑。
 - 第 16 轮 SearXNG 上游（经用户同意）：启用 `360search` 后上游全在封禁期、验证 0/6，按止损标准回滚，配置与改前逐字节一致（候选 K）。**SearXNG 当前仍被上游限流**，是改前就有的外部状态。
+- 本机回落 0.8.0 → 0.9.0；三门户握手 0.9.0、工具 2/3/2；元数据 exit 3；example.com 200；`--check` 三门户 ok；无痕 OMP 会话 `omp.academic` 返回真实 DOI。`SKILL.md` 改正了 0.7.0 时写的新闻说明（改为 opt-in 写法）。回滚备份 `~/.omp/agent/backups/mcp.json.20261120-235757`、`aggregate-search-skill-20261120-235757.tar.gz`；回滚命令 `uv tool install --force agg-search==0.8.0` 后解包恢复。
 - 下一轮优先：(1) 隔天、无评测流量时重测 SearXNG `360search`（先用 `engines=` 参数，不改配置）；(2) 新闻 opt-in 并用方案若想进默认，需要成本可接受的证据（例如只在 web 结果新鲜度不足时才追加垂直端点）；(3) 评测流量本身会触发上游限流，以后录制时控制频率。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
