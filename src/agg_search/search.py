@@ -139,6 +139,9 @@ def classify_error(err):
             or "quota" in low or "balance" in low or "insufficient" in low
             or "all tavily keys failed" in low):
         return "quota", COOLDOWN_TTL["quota"]
+    if s.startswith("upstreams unresponsive"):
+        # SearXNG with every upstream banned: its own ban window is 300 s+
+        return "antibot", COOLDOWN_TTL["antibot"]
     if ("429" in s or "captcha" in low or "suspended" in low
             or "too many requests" in low or "bot" in low):
         return "antibot", COOLDOWN_TTL["antibot"]
@@ -659,18 +662,19 @@ def eng_searxng(q, n, recency, timeout=ENGINE_TIMEOUT):
     req = urllib.request.Request(url, headers={"User-Agent": "omp-agg/1.0"})
     with _OPENER.open(req, timeout=_effective_timeout(timeout)) as r:
         d = _read_json(r)
-    LAST_SEARXNG_UNRESPONSIVE = d.get("unresponsive_engines") or []
+    unresponsive = d.get("unresponsive_engines") or []
+    LAST_SEARXNG_UNRESPONSIVE = unresponsive
     rows = [(norm_url(x["url"]), x.get("title", ""),
              (x.get("content") or "")[:400]) for x in d.get("results", [])[:n]
             if x.get("url")]
-    if not rows and LAST_SEARXNG_UNRESPONSIVE:
+    if not rows and unresponsive:
         # zero rows because the upstreams are suspended/CAPTCHA'd is a
         # failure: it must cool down and must not read as "query too narrow"
         reasons = "; ".join(
             "%s=%s" % (clean_text(str(item[0]))[:30],
                        clean_text(str(item[1]))[:40])
-            for item in LAST_SEARXNG_UNRESPONSIVE[:4]
-            if isinstance(item, (list, tuple)) and len(item) >= 2)
+            for item in unresponsive[:4]
+            if isinstance(item, (list, tuple)) and len(item) >= 2) or "unknown"
         return None, ("upstreams unresponsive: " + reasons)[:300]
     return rows, None
 
@@ -802,6 +806,17 @@ def eng_hn(q, n, recency):
     return out, None
 
 
+_PARTIAL_LOCK = threading.Lock()
+PARTIAL_NOTES = {}
+
+
+def _note_partial(engine, note):
+    """Record a non-fatal per-engine problem (e.g. one Stack Exchange site
+    failed) so it reaches engine_health without failing the engine."""
+    with _PARTIAL_LOCK:
+        PARTIAL_NOTES[engine] = note[:200]
+
+
 _SE_SITE_RE = re.compile(r"^[a-z][a-z0-9.\-]{1,40}$")
 MAX_SE_SITES = 4
 
@@ -852,20 +867,32 @@ def eng_stack(q, n, recency):
     sites = stack_sites()
     if len(sites) == 1:
         return _stack_site(q, n, recency, sites[0]), None
-    lists, first_err = [], None
+    deadline = getattr(_TLS, "deadline", None)  # --fast budget is per thread
+
+    def one(site):
+        _TLS.deadline = deadline
+        try:
+            return _stack_site(q, n, recency, site)
+        finally:
+            _TLS.deadline = None
+
+    lists, errors, first_err = [], [], None
     with cf.ThreadPoolExecutor(max_workers=len(sites)) as ex:
-        futs = [ex.submit(_stack_site, q, n, recency, site) for site in sites]
-        for fut in futs:
+        futs = [(site, ex.submit(one, site)) for site in sites]
+        for site, fut in futs:
             try:
                 lists.append(fut.result())
             except Exception as exc:  # noqa: BLE001 - per-site failure
                 first_err = first_err or exc
+                errors.append("%s: %s" % (site, type(exc).__name__))
     if not lists:
         raise first_err
     out, i = [], 0
     while any(i < len(rows) for rows in lists):
         out.extend(rows[i] for rows in lists if i < len(rows))
         i += 1
+    if errors:
+        _note_partial("stack", "partial: " + "; ".join(errors))
     return out, None
 
 
@@ -1635,7 +1662,10 @@ def _run_answer_sources(path_or_dash, portal, profile_name, prompts,
 
 
 def main():
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     global ENGINE_TIMEOUT, _FAST_MODE
     ap = argparse.ArgumentParser(description="parallel multi-engine search + RRF + jina rerank")
     ap.add_argument("--version", action="version",
@@ -1912,6 +1942,11 @@ def main():
     else:
         pending_cache = False
     status.update(recall_status)
+    with _PARTIAL_LOCK:
+        for eng, note in PARTIAL_NOTES.items():
+            if str(status.get(eng, "")).startswith("ok"):
+                status[eng] = "%s; %s" % (status[eng], note)
+        PARTIAL_NOTES.clear()
     # runtime degradation: a portal's required engine may fail or cool down
     # after the prefilter. Supplement with its keyless fallbacks (bounded)
     # and record why; never cache a supplemented result (it depends on the
@@ -1924,7 +1959,8 @@ def main():
         fallback = [e for e in portal["dependencies"].get(
             "keyless_fallback", ())
             if e in ENGINES and e not in engines
-            and missing_credential(e) is None]
+            and missing_credential(e) is None
+            and not (use_cooldown and cooldown.get(e, 0) > now)]
         if failed and fallback:
             extra, extra_status, extra_note = supplement_keyless(
                 queries, a.per_engine, a.recency, fallback,
@@ -1932,6 +1968,7 @@ def main():
             for key, rows in extra.items():
                 results.setdefault(key, []).extend(rows)
             status.update(extra_status)
+            recall_status = dict(recall_status, **extra_status)  # cool them too
             degraded.append(
                 "required engine(s) %s unavailable; supplemented %s%s"
                 % (",".join(failed), ",".join(fallback),

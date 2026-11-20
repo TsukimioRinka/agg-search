@@ -75,6 +75,10 @@ def record(a):
             if e in engines and until > now:
                 skipped[e] = "skipped: cooling"
         engines = [e for e in engines if e not in skipped]
+    if not engines:
+        raise SystemExit("record: no engine to call (%s)"
+                         % ("all cooling: " + ",".join(skipped) if skipped
+                            else "none of --engines is known"))
     out = {"created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
            "per_engine": a.per_engine, "engines": engines,
            "recency": a.recency, "queries": {}}
@@ -281,13 +285,20 @@ def parse_variant(text, profile):
     for item in filter(None, (x.strip() for x in spec.split(";"))):
         key, _, val = item.partition("=")
         if key == "engines":
-            for tok in filter(None, val.split(",")):
-                if tok[0] == "+" and tok[1:] not in cfg["engines"]:
-                    cfg["engines"].append(tok[1:])
-                elif tok[0] == "-":
-                    cfg["engines"] = [e for e in cfg["engines"] if e != tok[1:]]
-            if not any(t[:1] in "+-" for t in val.split(",") if t):
-                cfg["engines"] = [e for e in val.split(",") if e]
+            toks = [t for t in val.split(",") if t]
+            signed = [t[:1] in "+-" for t in toks]
+            if any(signed) and not all(signed):
+                raise SystemExit("variant %r: engines mixes +/- edits with a "
+                                 "plain list" % name)
+            if any(signed):
+                for tok in toks:
+                    if tok[0] == "+" and tok[1:] not in cfg["engines"]:
+                        cfg["engines"].append(tok[1:])
+                    elif tok[0] == "-":
+                        cfg["engines"] = [e for e in cfg["engines"]
+                                          if e != tok[1:]]
+            else:
+                cfg["engines"] = toks
         elif key.startswith("w."):
             cfg["weights"][key[2:]] = float(val)
         elif key == "blend":
@@ -332,7 +343,10 @@ def replay(fx, cfg, rerank_scores, top_n, rrf_top=15):
 
 
 def compare(a):
-    from agg_search import profiles
+    try:
+        from agg_search import profiles
+    except ImportError:  # plain-script run from a checkout
+        import profiles  # type: ignore[no-redef]
     fx = json.loads(Path(a.fixture).read_text(encoding="utf-8"))
     grades = load_grades(a.judgments)
     rerank = load_grades(a.rerank_scores) if a.rerank_scores else None
@@ -365,7 +379,10 @@ def compare(a):
 
 
 def main():
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     ap = argparse.ArgumentParser(description="RRF record/sweep harness")
     ap.add_argument("--version", action="version",
                     version=f"%(prog)s {__version__}")

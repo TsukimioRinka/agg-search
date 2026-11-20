@@ -217,17 +217,24 @@ def _prune_backups(path, keep=5):
 
 
 def _entry_portal(entry):
-    """Portal an MCP entry is bound to: env AGG_SEARCH_PORTAL or --portal arg."""
-    env = entry.get("env") if isinstance(entry.get("env"), dict) else {}
-    bound = env.get("AGG_SEARCH_PORTAL")
-    if bound:
-        return bound
-    args = entry.get("args") if isinstance(entry.get("args"), list) else []
+    """Portal an MCP entry is bound to, resolved like the server does:
+    a `--portal` argument wins over AGG_SEARCH_PORTAL in the environment.
+    Understands both `command`+`args` and opencode's list `command` +
+    `environment` shapes."""
+    command = entry.get("command")
+    if isinstance(command, list):
+        args = command[1:]
+    else:
+        args = entry.get("args") if isinstance(entry.get("args"), list) else []
     for i, arg in enumerate(args):
         if arg == "--portal" and i + 1 < len(args):
             return args[i + 1]
         if isinstance(arg, str) and arg.startswith("--portal="):
             return arg.split("=", 1)[1]
+    for key in ("env", "environment"):
+        env = entry.get(key)
+        if isinstance(env, dict) and env.get("AGG_SEARCH_PORTAL"):
+            return env["AGG_SEARCH_PORTAL"]
     return None
 
 
@@ -698,7 +705,10 @@ def describe(name, argv, env, scope, server=SERVER):
 
 
 def main(argv=None):
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     ap = argparse.ArgumentParser(
         description="Register agg-search in an MCP client's config.")
     ap.add_argument("--version", action="version",

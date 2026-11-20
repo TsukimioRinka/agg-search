@@ -631,8 +631,8 @@ def call_tool(name: str, arguments: dict, request_id=None):
 # --- prompts (MCP 2025-06-18): one research workflow per portal ----------
 MAX_PROMPT_ARG = 500
 _PROMPT_UNSAFE = re.compile(
-    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e"
-    "\u2066-\u2069\ufeff]")
+    "[\x00-\x08\x0b-\x1f\x7f-\x9f\u00ad\u200b-\u200f\u202a-\u202e"
+    "\u2060-\u2064\u2066-\u2069\ufeff]")
 
 
 def _prompt_name(portal):
@@ -662,10 +662,15 @@ def get_prompt(name, arguments, portal):
     if name != _prompt_name(portal):
         raise KeyError("unknown prompt: %s (available: %s)"
                        % (name, _prompt_name(portal)))
-    topic = (arguments or {}).get("topic")
-    if not isinstance(topic, str) or not topic.strip():
+    if arguments is None:
+        arguments = {}
+    if not isinstance(arguments, dict):
+        raise KeyError("prompt %r: 'arguments' must be an object" % name)
+    topic = arguments.get("topic")
+    if isinstance(topic, str):
+        topic = _PROMPT_UNSAFE.sub("", topic).strip()[:MAX_PROMPT_ARG]
+    if not isinstance(topic, str) or not topic:
         raise KeyError("prompt %r requires a non-empty string 'topic'" % name)
-    topic = _PROMPT_UNSAFE.sub("", topic).strip()[:MAX_PROMPT_ARG]
     if portal:
         steps = ["%d. `%s`: %s" % (i, step["tool"], step["guidance"])
                  for i, step in enumerate(portal["tool_order"], 1)
@@ -817,7 +822,10 @@ def _run_and_send(request: dict) -> None:
 
 
 def main(argv=None) -> None:
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     ap = argparse.ArgumentParser(description="Stdio MCP server for agg-search.")
     ap.add_argument("--version", action="version",
                     version=f"%(prog)s {__version__}")
