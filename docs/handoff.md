@@ -186,6 +186,14 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 已知外部状态：本机 SearXNG 上游被限流（brave/google cse/wikipedia `Suspended`，duckduckgo `CAPTCHA`），此时 `code` 全降级路径返回 0 条；`firecrawl` 与 `deepseek` 搜索额度 402。
 - 下一轮优先：(1) `tools/eval-offline.sh` 把本轮 record → qwen 标注 → 回放流程固化成脚本（本轮脚本已随实验目录删除，方法记录在 benchmarks G）；(2) SearXNG 上游限流时的引擎轮换/健康提示；(3) `general` 画像在中文查询上的去重与重排评测（本轮未覆盖 general）。
 
+## 7.4 第 11–13 轮记录（0.8.0）
+
+- 第 11 轮 `fix(searxng)`：SearXNG 上游全被限流时返回 200 + 0 条，以前当作健康空结果（不冷却、报「查询太窄」）。现在判为失败并按 `antibot` 冷却 600 s，原因列出被暂停的上游。实测本机当前状态即属此情况。
+- 第 12 轮 `feat(eval)`：`agg-search-eval` 增加 `judge`（本地 qwen 0/1/2 或 Jina，可断点续跑）与 `compare`（离线回放画像变体）；`record` 默认跳过冷却中的引擎；`tools/eval-offline.sh QUERIES PROFILE RUBRIC [VARIANT...]` 串起全流程。以后做领域 A/B 直接用它，不要再手写一次性脚本。
+- 第 13 轮评测（无改动）：`general` 中文 20 条，现有默认最优或持平；内容去重 11 对合并人工核对误杀 0（`docs/benchmarks.md` 候选 H）。
+- 本机回落 0.7.0 → 0.8.0；三门户握手 0.8.0、工具 2/3/2；元数据 exit 3；example.com 200；三门户 `--check` ok；无痕 OMP 会话 `omp.academic` 返回真实 DOI。`SKILL.md` 本轮未改。回滚备份 `~/.omp/agent/backups/mcp.json.20261120-231537`；回滚命令 `uv tool install --force agg-search==0.7.0`。
+- 下一轮优先：(1) 用 `eval-offline.sh` 扩大 news/code 评测集（目前每领域 10–22 条，同一天录制），确认 0.7.0 的新闻改动跨天稳定；(2) SearXNG 上游限流的根因在本机 SearXNG 配置（brave/google cse 公共接口被限），可考虑调整 `searxng` 容器的上游列表，但那是用户的生产服务，**须先征得同意**；(3) `code` 门户纯免 key 路径仍弱（nDCG 0.253），可评测 Stack Exchange 多站点（unix/superuser/serverfault）。
+
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 
 0.5.0 已完成：`portals.json` / `docs/portals.md` / `agg-search-install --portal`、按门户隔离工具子集/顺序与领域 prompt、缺失依赖降级与 `engine_health.degraded`、5 项增强机制对照评测（合入内容去重、权威域先验、`code blend=0.4`、opt-in `--answer-fetch`；拒绝默认 `--expand`）及 6 CLI 客户端隔离端到端验证。
