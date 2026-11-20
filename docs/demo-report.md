@@ -43,3 +43,24 @@ DEMO_CHECK_PYPI=1 bash tools/demo-portals.sh
 - 补召路径在**真实引擎失败**下未做在线验证（单测用假引擎覆盖逻辑）；合并后建议用 `openalex` 冷却场景实测一次。
 - `catalog.json` 的 `path` 现在是 `~/...`，`--write` 仍使用绝对路径展开，行为不变。
 - 版本号未在分支内提升（仍 0.5.0，CHANGELOG 为 `Unreleased — target 0.5.1`），由合并方按流程升版发布。
+
+## 合并记录
+
+- **合并日期**：2026-11-20
+- **合并与发版提交**：
+  - PR #1（`feat/engine-registry-hardening`）squash 合并至 `main`：`70f01c2`
+  - `0.5.1` 发版提交：`84976b4`，tag：`v0.5.1`
+- **评审确认项**：
+  - SSRF 防护、仅服务端 `allow_private` / `allow_cidrs`、3xx 拒绝与请求走私保护均未被修改；实测 `crawl-fetch --url http://169.254.169.254/latest/meta-data/ --no-cache` 拦截（exit 3，`guard`），`https://example.com/` 返回 `200`（`static`）。
+  - 产物不含真实家目录绝对路径或密钥；`agg-search --show-config` 仅输出凭据布尔值。
+  - 门户运行时回退（`missing_required` + `supplement_keyless`）限定 8s，结果不写缓存（`if pending_cache and not supplemented:`）。
+- **合并前发现的边界问题及修复（相对 PR #1 的唯一代码偏差）**：
+  - `src/agg_search/mcp.py::_bound_sources` 原实现使用 `elif used + len(text) > total:`，当某条来源同时超过单条 20k 与累计 60k 上限时（例如 `[15k, 15k, 15k, 25k]`），会跳过总量截断导致总字符达到 65k > `MAX_ANSWER_CHARS`；且在循环末尾 `if used >= total: break` 会静默丢弃后续来源而未在 `degraded` 标注。
+  - 已在 `84976b4` 中将 `elif` 改为独立 `if`，并在循环入口检查 `used >= total` 时补充 `answer sources truncated at 60000 chars`；同步在 `tests/test_registry_demo.py` 增加 2 个回归测试（测试总数 `234 → 236`）。
+  - 备注：`agg-search` CLI 无 `--version` 参数，包版本通过 `importlib.metadata` / `agg_search.__version__` 与 `agg-search --show-config` 核验。
+- **发布与一致性验收结果**：
+  - 本地复验（`DEMO_CHECK_PYPI=1 bash tools/demo-portals.sh`）：`ruff` clean、**236 tests OK**、4 份生成产物与重生成结果逐字节一致、门户隔离与截断边界通过、PyPI latest 抽检通过。
+  - **PyPI**：`https://pypi.org/pypi/agg-search/0.5.1/json` 与 `/pypi/agg-search/json` 均为 `0.5.1`（`bdist_wheel` + `sdist`）；`uvx --refresh --from agg-search@latest` 运行版本为 `0.5.1`，`--list-portals` 共 `52` 个门户。
+  - **MCP Registry**：`io.github.TsukimioRinka/agg-search` 最新条为 `0.5.1`（`active`），`0.5.0` 已标为 `deprecated`。
+  - **GitHub Release & CI**：`v0.5.1` 已附 `agg_search-0.5.1-py3-none-any.whl` 与 `agg_search-0.5.1.tar.gz`；Actions `tests`（`44739803374`）与 `publish`（`44739955513`）均为 `success`。
+- **清理确认**：临时目录与构建目录 `dist/` 已清理，`pgrep` 无 `agg-search` / `mcp-inspector` 残留，`docker ps` 仅保留既有 `searxng`，未打印任何本地密钥文件内容。
