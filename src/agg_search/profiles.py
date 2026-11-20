@@ -53,15 +53,15 @@ PROFILES = {
     "news": {
         "description": "recent events: freshness-first engines with a one-day "
                        "default window",
-        # news verticals instead of web search: same keys and request count,
-        # dated news reports instead of evergreen pages (benchmarks.md, G)
-        "engines": ["brave_news", "serper_news", "tavily", "firecrawl"],
-        "weights": {"brave_news": 1.3, "serper_news": 1.2, "tavily": 1.1},
-        "primary": ["brave_news"],
+        # web endpoints: 0.7.0 switched to the news verticals, which won on
+        # entity-name queries but drifted off-topic on event queries; over
+        # 42 queries web averaged 0.806 vs 0.776 (benchmarks.md, J). Adding
+        # brave_news,serper_news on top scored 0.836 for +2 paid requests,
+        # so it stays opt-in via --engines.
+        "engines": ["brave", "serper", "tavily", "firecrawl"],
+        "weights": {"brave": 1.3, "serper": 1.2, "tavily": 1.1},
+        "primary": ["brave"],
         "recency": "day",
-        # keep RRF (freshness-ordered provider ranks) dominant: pure Jina
-        # promotes evergreen pages that repeat the query words
-        "rerank_blend": 0.3,
         "snippet_chars": 300,
     },
 }

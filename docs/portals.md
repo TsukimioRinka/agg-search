@@ -13,7 +13,7 @@
 | `academic` | `agg-search-academic` | `search` → `fetch` → `answer` | `openalex` | top_n=15, blend=0.4, snippet=500 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `code` | `agg-search-code` | `search` → `fetch` | `stack` | blend=0.4, snippet=600 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `general` | `agg-search` | `search` → `fetch` | — | balanced | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
-| `news` | `agg-search-news` | `search` → `fetch` | — | recency=`day`, blend=0.3, snippet=300 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
+| `news` | `agg-search-news` | `search` → `fetch` | — | recency=`day`, snippet=300 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 
 ## 按 Agent（本地 LLM 假设与回答回退顺序）
 

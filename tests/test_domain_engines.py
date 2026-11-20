@@ -154,11 +154,13 @@ class DomainWiringTest(unittest.TestCase):
         self.assertEqual(specs["serper_news"]["env"], ("SERPER_API_KEY",))
         self.assertNotIn("arxiv", engine_specs.default_engines().split(","))
 
-    def test_news_profile_uses_verticals_with_rrf_dominant_blend(self):
+    def test_news_profile_keeps_web_endpoints_and_pure_jina(self):
+        # 0.7.0's vertical-only default regressed on event queries (J)
         p = profiles.load("news")
-        self.assertEqual(p["engines"][:2], ["brave_news", "serper_news"])
-        self.assertEqual(p["primary"], ["brave_news"])
-        self.assertEqual(p["rerank_blend"], 0.3)
+        self.assertEqual(p["engines"][:2], ["brave", "serper"])
+        self.assertEqual(p["primary"], ["brave"])
+        self.assertIsNone(p.get("rerank_blend"))
+        self.assertNotIn("brave_news", p["engines"])
 
     def test_academic_and_code_keyless_fallbacks(self):
         self.assertEqual(

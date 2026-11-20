@@ -187,11 +187,13 @@ def fixture_pool(fx, q):
     return pool
 
 
-def _qwen_grade(query, title, snippet, rubric, model):
+def _qwen_grade(query, title, snippet, rubric, model, today=None):
     base = m.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-    prompt = ("You grade search results.\nQuery: %s\nResult title: %s\n"
+    # recency rubrics ("last few days") are meaningless without a date
+    when = ("The search was made on %s.\n" % today) if today else ""
+    prompt = ("You grade search results.\n%sQuery: %s\nResult title: %s\n"
               "Result snippet: %s\n%s Reply with one digit only."
-              % (query, title[:200], snippet[:400], RUBRICS[rubric]))
+              % (when, query, title[:200], snippet[:400], RUBRICS[rubric]))
     d = m.http_json(base + "/api/generate", method="POST", timeout=120,
                     body={"model": model, "prompt": prompt, "stream": False,
                           "think": False,
@@ -222,6 +224,7 @@ def judge(a):
     out_path = Path(a.out)
     labels = (json.loads(out_path.read_text(encoding="utf-8"))
               if out_path.exists() else {})
+    today = str(fx.get("created") or "")[:10] or time.strftime("%Y-%m-%d")
     for q in fx["queries"]:
         pool = fixture_pool(fx, q)
         have = labels.setdefault(q, {})
@@ -234,7 +237,7 @@ def judge(a):
             items = list(todo.items())
             with cf.ThreadPoolExecutor(max_workers=a.workers) as ex:
                 grades = list(ex.map(lambda kv: _qwen_grade(
-                    q, kv[1][0], kv[1][1], a.rubric, a.model), items))
+                    q, kv[1][0], kv[1][1], a.rubric, a.model, today), items))
             have.update({k: g for (k, _), g in zip(items, grades)})
         out_path.write_text(json.dumps(labels, ensure_ascii=False),
                             encoding="utf-8")  # checkpoint per query
