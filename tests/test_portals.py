@@ -334,6 +334,42 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
         self.assertIn("engine openalex cooling", joined)
         self.assertIn("fell back to keyless: searxng", joined)
 
+    def test_academic_first_429_supplements_in_the_same_call(self):
+        orig_oa = search.ENGINES["openalex"]
+        orig_sx = search.ENGINES["searxng"]
+        search.ENGINES["openalex"] = (
+            lambda q, n, r: (None, "HTTPError: HTTP Error 429: Too Many Requests"),
+            orig_oa[1])
+        search.ENGINES["searxng"] = (
+            lambda q, n, r: ([("https://arxiv.org/abs/2211.17192",
+                               "Speculative Decoding", "paper")], None),
+            orig_sx[1])
+        saved = {}
+        try:
+            argv = ["agg-search", "speculative decoding",
+                    "--portal", "codex.academic", "--engines", "openalex",
+                    "--no-jina", "--json"]
+            buf = io.StringIO()
+            with mock.patch.object(search, "load_cooldown", return_value={}), \
+                    mock.patch.object(search, "save_cooldown",
+                                      side_effect=saved.update), \
+                    mock.patch.object(search, "load_cache", return_value={}), \
+                    mock.patch.object(search, "save_cache") as save_cache, \
+                    mock.patch.object(sys, "argv", argv), \
+                    contextlib.redirect_stdout(buf):
+                search.main()
+        finally:
+            search.ENGINES["openalex"] = orig_oa
+            search.ENGINES["searxng"] = orig_sx
+
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(payload["results"][0]["engines"], ["searxng"])
+        joined = " | ".join(payload["engine_health"]["degraded"])
+        self.assertIn("required engine(s) openalex unavailable; "
+                      "supplemented searxng", joined)
+        self.assertIn("openalex", saved)       # 429 still starts a cooldown
+        save_cache.assert_not_called()         # supplemented rows never cached
+
     def test_show_config_portal_reports_dependencies_without_secrets(self):
         secret = "sk-do-not-leak-999"
         argv = ["agg-search", "--portal", "claude-code.code", "--show-config"]

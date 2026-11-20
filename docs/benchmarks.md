@@ -101,3 +101,21 @@
 | `news` (1.00) | `pos` | 2/18 | 3/18 | 3/18 | 3/18 | 3/18 | 3/18 | 4/18 | **4/18** | 保持纯 Jina (`None`) |
 
 **结论**：保留 `pos` 混合模式（比 `score` 更稳定），将 `code` 的 `rerank_blend` 从 `0.6` 调整为 `0.4`（配合权威域先验与去重，`code` 权威源@3 从 `3/18` 升至 `9/18`）；`academic`（0.4）、`news`（纯 Jina）、`general`（纯 Jina）保持不变。
+
+---
+
+## 候选 F：`news` 空结果自适应时间窗回退（`day` → `week`）（2026-11-20，已拒绝）
+
+假设：`news` 默认 `recency="day"` 对冷门主题可能召回 0 条，此时有界放宽到 `week` 并在 `engine_health.degraded` 标注。
+
+方法：20 条冷门技术新闻查询（OpenBSD/NetBSD/Guix/9front/ReactOS/Haiku/illumos 等，含 2 条中文），`news` 画像引擎 `brave,serper,tavily,firecrawl`，`per_engine=5`，`recency=day`，仅当 `day` 为空时才补录 `week`。原始数据录在 `/tmp/agg-lab-r4`（已删）。
+
+| 指标 | 结果 |
+|---|---|
+| `day` 空结果率 | **0/20**（加上候选 A 的 6 条，共 0/26） |
+| 每条召回行数 | 最少 7，平均 13.1 |
+| 召回墙钟 | p50 2311 ms，p95 3621 ms，最大 5062 ms |
+| 主引擎 `brave` 返回 0 条 | 3/20（Zig、Raspberry Pi firmware、Guix），由 `serper`/`tavily` 兜住 |
+| `firecrawl` | 20/20 失败：402 Payment Required ×10、429 ×10（额度耗尽，已正确进入冷却） |
+
+**结论**：触发条件在真实查询中没有出现，功能无可测收益，**拒绝，未合入任何代码**。若以后要做，应针对「主引擎为 0 但其他引擎非空」而不是「全空」，且需先有人工新鲜度金标。
