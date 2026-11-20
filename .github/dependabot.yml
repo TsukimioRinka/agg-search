@@ -1,0 +1,18 @@
+# Weekly PRs for the SHA-pinned actions and the hash-pinned build tooling.
+# The runtime has no dependencies (stdlib only), so there is nothing else.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /.github
+    schedule:
+      interval: weekly
+    groups:
+      build-tooling:
+        patterns: ["*"]
