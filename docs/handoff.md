@@ -176,6 +176,16 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 本机回落：`uv tool` 0.5.3 → 0.6.0；三门户握手 0.6.0、工具 2/3/2；元数据 exit 3（带 `error_class: ssrf_blocked`）；example.com 200；无痕 OMP 会话 `omp.academic` + openalex 返回真实 DOI。`SKILL.md` 增加一行 `error_class` 重试建议。回滚备份：`~/.omp/agent/backups/mcp.json.20261120-215714`、`aggregate-search-skill-20261120-215714.tar.gz`；回滚命令 `uv tool install --force agg-search==0.5.3` 后解包恢复。
 - 下一轮优先：给 `firecrawl` 额度耗尽设更长冷却（402 应按「付费失效」而非普通错误处理，需先查 `classify_error` 现状）；其次 `tools/eval-offline.sh` 固化离线评测；再次 arxiv/crossref 免 key 引擎评测。
 
+## 7.3 第 10 轮记录（0.7.0，领域细化）
+
+- 先纠正上一轮的误判：`firecrawl` 402 早已按 `quota` 冷却 3600 s（`search.classify_error`）。上轮评测脚本直接调引擎函数绕过了冷却，才看到 20/20 失败，代码没问题。
+- 评测方法：每领域录一次原始引擎返回，之后离线回放 `rrf_fuse` + `_blend_order`。主判据是本地 `qwen3.5:9b` 的 0/1/2 领域分级（零付费），Jina 只做参考（它也是重排器，有偏）。全部数据与拒绝项见 `docs/benchmarks.md` 候选 G。
+- 合入：`news` 改用 `brave_news`/`serper_news` + `rerank_blend=0.3`；`arxiv` 免 key 引擎只进 `academic` 补召；`code` 补召加 `searxng`。
+- 拒绝：stack 去中文、扩 code 权威域、arxiv 进学术默认路径、新闻 web+垂直并用。
+- 本机回落 0.6.0 → 0.7.0；三门户握手 0.7.0，工具 2/3/2；元数据 exit 3；example.com 200；三门户 `--check` ok；无痕 OMP 会话 `omp.academic` 返回真实 DOI。`SKILL.md` 补了新闻日期前缀与补召源说明。回滚备份 `~/.omp/agent/backups/mcp.json.20261120-225224`、`aggregate-search-skill-20261120-225224.tar.gz`；回滚命令 `uv tool install --force agg-search==0.6.0` 后解包恢复。
+- 已知外部状态：本机 SearXNG 上游被限流（brave/google cse/wikipedia `Suspended`，duckduckgo `CAPTCHA`），此时 `code` 全降级路径返回 0 条；`firecrawl` 与 `deepseek` 搜索额度 402。
+- 下一轮优先：(1) `tools/eval-offline.sh` 把本轮 record → qwen 标注 → 回放流程固化成脚本（本轮脚本已随实验目录删除，方法记录在 benchmarks G）；(2) SearXNG 上游限流时的引擎轮换/健康提示；(3) `general` 画像在中文查询上的去重与重排评测（本轮未覆盖 general）。
+
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 
 0.5.0 已完成：`portals.json` / `docs/portals.md` / `agg-search-install --portal`、按门户隔离工具子集/顺序与领域 prompt、缺失依赖降级与 `engine_health.degraded`、5 项增强机制对照评测（合入内容去重、权威域先验、`code blend=0.4`、opt-in `--answer-fetch`；拒绝默认 `--expand`）及 6 CLI 客户端隔离端到端验证。
