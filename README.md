@@ -23,7 +23,7 @@ A multi-engine search stack for agents: parallel recall across eleven engines (t
 2. **抓取是阶梯而不是一个函数** —— DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
 3. **排序是两阶段** —— RRF 粗排前 15，再交给 Jina Reranker v3.5 listwise 精排；模型不可用链式回退 v3 → v2，全失败则保留 RRF 顺序，绝不阻塞。
 4. **韧性层是显式的** —— 5 分钟结果缓存 + 15 分钟页面缓存、按错误类型分级的冷却（额度 1h / 反爬 10min / 超时 90s）、引擎健康与延迟上报，缺 key 的引擎提前剔除不占线程。
-5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
+5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、按门户的 prompts、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
 6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
 
 ## 架构
@@ -149,6 +149,7 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 - 工具带 `title`、`annotations`（`readOnlyHint`、`openWorldHint`）和 `outputSchema`；支持结构化输出的客户端直接拿 `structuredContent`，老客户端仍拿文本。
 - 每个工具调用有硬墙钟（search 120s / fetch 300s），超时杀进程组；`notifications/cancelled` 同样会中断。
 - 工具调用在线程池里跑，`ping`/`tools/list` 不会被慢引擎卡住。
+- `prompts/list` / `prompts/get`：每个门户一个研究流程提示（`web-research`、`academic-research`、`code-research`、`news-research`），参数 `topic`（≤500 字，剥离控制字符）。提示只列出该门户启用的工具，跨门户取不到；支持 MCP prompts 的客户端会把它显示成斜杠命令。
 - `search` 在 MCP 下默认 `fast=true`（有限的召回预算），`fast=false` 才等全部引擎。
 
 ### 一行接入
