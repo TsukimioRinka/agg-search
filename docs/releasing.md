@@ -18,7 +18,8 @@
 # 1. bump version in pyproject.toml, add a CHANGELOG entry
 # 2. verify locally
 python -m unittest discover -s tests -v
-python -m build
+python -m pip install --require-hashes --no-deps -r .github/requirements-build.txt
+python -m build --no-isolation   # same hash-pinned tooling as publish.yml
 python -m pip install dist/agg_search-*.whl --force-reinstall
 agg-search --help
 

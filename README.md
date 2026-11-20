@@ -229,6 +229,10 @@ python3 -m unittest discover -s tests -v
 - 进入模型上下文的页面文本会剥离零宽与双向控制字符（隐藏指令的常见载体），MCP 指令块也声明页面内容为不可信数据。
 - HTTP 传输默认回环绑定 + `Host`/`Origin` 白名单，无认证时不得裸奔到公网。
 
+## 稳定性
+
+从 1.0 起按 SemVer 发版。命令名、CLI 参数、`--json` 字段、`crawl-fetch` 的输出与退出码、MCP 工具/提示与协议版本、画像/门户/引擎名、环境变量和安全行为都在承诺范围内；结果排序等质量参数会按评测数据在次版本中调整。详见 [docs/stability.md](docs/stability.md)。
+
 ## 文档
 
 | 文档 | 内容 |
@@ -238,11 +242,12 @@ python3 -m unittest discover -s tests -v
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
 | [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
 | [docs/portals.md](docs/portals.md) | 56 个 `agent × domain` 门户规格、工具顺序与降级路径 |
-| [docs/benchmarks.md](docs/benchmarks.md) | 5 项增强机制的对照评测（18 领域 + 10 通用查询）与取舍依据 |
+| [docs/stability.md](docs/stability.md) | 1.0 起的稳定性承诺：哪些接口受 SemVer 保护、弃用流程 |
+| [docs/benchmarks.md](docs/benchmarks.md) | 各项增强与领域调整的对照评测（候选 A–M）、合入与拒绝的依据 |
 | [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的门户隔离实测与清理记录 |
 | [docs/handoff.md](docs/handoff.md) | 交接：本机路径、凭据位置、逐层验证与发版流程 |
 | [docs/fetching.md](docs/fetching.md) | 分层抓取的梯子与容器 |
-| [docs/reranking.md](docs/reranking.md) | RRF 与 Jina 精排、参数扫描 |
+| [docs/reranking.md](docs/reranking.md) | RRF 与 Jina 精排、参数扫描、领域 A/B 工具（`tools/eval-offline.sh`） |
 | [docs/environment.md](docs/environment.md) | 环境变量与计费说明 |
 
 ## License
