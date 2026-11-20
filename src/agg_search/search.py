@@ -660,9 +660,19 @@ def eng_searxng(q, n, recency, timeout=ENGINE_TIMEOUT):
     with _OPENER.open(req, timeout=_effective_timeout(timeout)) as r:
         d = _read_json(r)
     LAST_SEARXNG_UNRESPONSIVE = d.get("unresponsive_engines") or []
-    return ([(norm_url(x["url"]), x.get("title", ""),
-              (x.get("content") or "")[:400]) for x in d.get("results", [])[:n]
-             if x.get("url")], None)
+    rows = [(norm_url(x["url"]), x.get("title", ""),
+             (x.get("content") or "")[:400]) for x in d.get("results", [])[:n]
+            if x.get("url")]
+    if not rows and LAST_SEARXNG_UNRESPONSIVE:
+        # zero rows because the upstreams are suspended/CAPTCHA'd is a
+        # failure: it must cool down and must not read as "query too narrow"
+        reasons = "; ".join(
+            "%s=%s" % (clean_text(str(item[0]))[:30],
+                       clean_text(str(item[1]))[:40])
+            for item in LAST_SEARXNG_UNRESPONSIVE[:4]
+            if isinstance(item, (list, tuple)) and len(item) >= 2)
+        return None, ("upstreams unresponsive: " + reasons)[:300]
+    return rows, None
 
 
 def eng_anysearch(q, n):
