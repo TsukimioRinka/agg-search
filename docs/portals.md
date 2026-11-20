@@ -4,6 +4,8 @@
 
 本文件由 `agg-search-install --portals --markdown` 生成，机器可读版本见 [`portals.json`](../portals.json)；客户端矩阵见 [`catalog.md`](catalog.md) / [`catalog.json`](../catalog.json)。
 
+> 工具顺序是**给模型的编排建议**（写进 instructions 与工具描述），不是服务端强制流水线；唯一在工具内部自动执行的是 `answer` 的 opt-in `urls` 预取。门户隔离强制的是**工具子集**（调用未暴露的工具返回 `-32602`）与独立 server 名/instructions。
+
 ## 按领域（工具面、顺序、默认窗与依赖）
 
 | 领域 | MCP server 名 | 工具子集与顺序 | 必需引擎（免 key） | 默认时效/参数 | 降级策略 |

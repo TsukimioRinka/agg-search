@@ -116,8 +116,9 @@ agg-search "MCP server examples" --json
 # RAG-Fusion 查询扩展（需要本地 ollama）
 agg-search "vector database tradeoffs" --expand 3
 
-# 带引用的答案段（本地 ollama；--answer deepseek 走 API）
-agg-search "what changed in Python 3.13" --answer
+# 带引用的答案段（auto：先本地 ollama，失败可落 DeepSeek API，会产生计费；
+# 想完全避免费用用 --answer local）
+agg-search "what changed in Python 3.13" --answer local
 
 # 快速模式：单池扇出，最早两个有结果的引擎就返回
 agg-search "breaking news" --fast --budget-secs 20

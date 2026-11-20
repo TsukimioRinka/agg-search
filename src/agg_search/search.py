@@ -49,8 +49,9 @@ import urllib.parse
 import urllib.request
 
 try:  # package import (installed, `python -m agg_search.search`)
-    from . import learn, portals, profiles
+    from . import engine_specs, learn, portals, profiles
 except ImportError:  # pragma: no cover - direct script execution
+    import engine_specs  # type: ignore[no-redef]
     import learn  # type: ignore[no-redef]
     import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
@@ -74,23 +75,16 @@ CACHE_TTL = 300  # 5min LRU, mirrors dsh-free-search
 MAX_CACHE_ENTRIES = 50
 # failure category -> cooldown seconds; empty/healthy never cools
 COOLDOWN_TTL = {"quota": 3600, "antibot": 600, "timeout": 90}
-# engine -> env vars proving credentials (any one suffices); absent = keyless
-CREDENTIAL_ENV = {
-    "exa": ("EXA_API_KEY",),
-    "brave": ("BRAVE_API_KEY",),
-    "serper": ("SERPER_API_KEY",),
-    "firecrawl": ("FIRECRAWL_API_KEY",),
-    "anysearch": ("MCP_ANYSEARCH_API_KEY",),
-    "tavily": ("TAVILY_API_KEY", "TAVILY_API_KEY_BACKUP"),
-    "deepseek": ("DEEPSEEK_API_KEY",),
-}
+# engine -> env vars proving credentials (any one suffices); absent = keyless.
+# Derived from engine_specs so the CLI, MCP schema and portals cannot drift.
+CREDENTIAL_ENV = engine_specs.credential_env()
 # last SearXNG unresponsive_engines report [[name, reason], ...]
 LAST_SEARXNG_UNRESPONSIVE = []
 # last per-engine wall time in ms (engine -> ms); variant runs fold by max.
 # Written by recall/recall_multi/recall_flat, read by main() for --json.
 LAST_TIMINGS = {}
 # CLI defaults; AGG_SEARCH_* env vars may replace them when a flag is omitted
-DEFAULT_ENGINES = "exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng"
+DEFAULT_ENGINES = engine_specs.default_engines()
 DEFAULT_TOP_N = 10
 DEFAULT_PER_ENGINE = 5
 DEFAULT_SNIPPET_CHARS = 400
@@ -824,21 +818,22 @@ def eng_stack(q, n, recency):
     return out, None
 
 
-ENGINES = {
-    # name: (fn(q, n, recency), rrf weight); index 1 is weight,
-    # relied on by rrf_eval.py and main() — keep append-only.
-    "exa": (lambda q, n, r: eng_exa(q, n), 1.0),
-    "brave": (lambda q, n, r: eng_brave(q, n, r), 1.0),
-    "serper": (lambda q, n, r: eng_serper(q, n, r), 1.0),
-    "firecrawl": (lambda q, n, r: eng_firecrawl(q, n, r), 1.0),
-    "anysearch": (lambda q, n, r: eng_anysearch(q, n), 1.0),
-    "tavily": (lambda q, n, r: eng_tavily(q, n, r), 1.0),
-    "deepseek": (lambda q, n, r: eng_deepseek(q, n, r), 1.0),
-    "searxng": (lambda q, n, r: eng_searxng(q, n, r), 0.5),
-    "openalex": (lambda q, n, r: eng_openalex(q, n, r), 1.0),
-    "hn": (lambda q, n, r: eng_hn(q, n, r), 1.0),
-    "stack": (lambda q, n, r: eng_stack(q, n, r), 1.0),
+_ENGINE_FNS = {
+    "exa": lambda q, n, r: eng_exa(q, n),
+    "brave": lambda q, n, r: eng_brave(q, n, r),
+    "serper": lambda q, n, r: eng_serper(q, n, r),
+    "firecrawl": lambda q, n, r: eng_firecrawl(q, n, r),
+    "anysearch": lambda q, n, r: eng_anysearch(q, n),
+    "tavily": lambda q, n, r: eng_tavily(q, n, r),
+    "deepseek": lambda q, n, r: eng_deepseek(q, n, r),
+    "searxng": lambda q, n, r: eng_searxng(q, n, r),
+    "openalex": lambda q, n, r: eng_openalex(q, n, r),
+    "hn": lambda q, n, r: eng_hn(q, n, r),
+    "stack": lambda q, n, r: eng_stack(q, n, r),
 }
+# name: (fn(q, n, recency), rrf weight) — weights come from engine_specs.
+ENGINES = {name: (_ENGINE_FNS[name], engine_specs.ENGINE_SPECS[name]["weight"])
+           for name in _ENGINE_FNS}
 
 
 def _timed_call(name, query, n, recency):
@@ -991,6 +986,25 @@ def recall_flat(queries, n, engines, recency, budget_secs=30.0, min_sources=0,
     LAST_TIMINGS.clear()
     LAST_TIMINGS.update(timing)
     return results, status, note
+
+
+def missing_required(required, status):
+    """Portal-required engines that did not return rows."""
+    return [name for name in required
+            if not str(status.get(name, "")).startswith("ok")]
+
+
+def supplement_keyless(queries, n, recency, fallback, deadline):
+    """Recall keyless fallback engines when a portal's primary engine failed.
+
+    Portal degradation is not just a credential-time decision: an engine can
+    fail or cool down at runtime. This runs a bounded second pool so the
+    domain answer still has a source.
+    """
+    results, status, note = recall_flat(
+        queries, n, fallback, recency, budget_secs=8.0, min_sources=1,
+        deadline=deadline)
+    return results, status, (note or "")
 
 
 def _flat_one(query, n, recency, eng, qi, deadline):
@@ -1485,8 +1499,10 @@ def main():
     ap.add_argument("--answer", nargs="?", const="auto", default=None,
                     choices=["auto", "local", "deepseek"],
                     metavar="auto|local|deepseek",
-                    help="synthesize a cited answer from the top results "
-                         "(bare flag = portal order, local ollama first)")
+                    help="synthesize a cited answer from the top results. "
+                         "auto (bare flag) follows the portal order; if local "
+                         "ollama is unavailable it can fall through to the "
+                         "billable DeepSeek chat API")
     ap.add_argument("--answer-sources", default=None, metavar="PATH|-",
                     help="synthesize an answer from a JSON {query, sources} "
                          "payload (used by the portal `answer` MCP tool)")
@@ -1728,19 +1744,48 @@ def main():
             fast_note = ""
         recall_ms = (time.perf_counter() - recall_t0) * 1000.0
         timings = dict(LAST_TIMINGS)
-        if use_cache and len(queries) == 1 and not a.answer and results:
-            store = load_cache()
-            store[ckey] = {"at": now,
-                           "results": {k: [list(r) for r in v]
-                                       for k, v in results.items()},
-                           "status": recall_status,
-                           "searxng_unresponsive": LAST_SEARXNG_UNRESPONSIVE}
-            save_cache(store)
+        pending_cache = bool(use_cache and len(queries) == 1
+                             and not a.answer and results)
+    else:
+        pending_cache = False
+    status.update(recall_status)
+    # runtime degradation: a portal's required engine may fail or cool down
+    # after the prefilter. Supplement with its keyless fallbacks (bounded)
+    # and record why; never cache a supplemented result (it depends on the
+    # failure, not only on the query).
+    supplemented = False
+    if portal and not cached:
+        required = [e for e in portal["dependencies"].get(
+            "required_engines", ()) if e in engines]
+        failed = missing_required(required, status)
+        fallback = [e for e in portal["dependencies"].get(
+            "keyless_fallback", ())
+            if e in ENGINES and e not in engines
+            and missing_credential(e) is None]
+        if failed and fallback:
+            extra, extra_status, extra_note = supplement_keyless(
+                queries, a.per_engine, a.recency, fallback,
+                time.monotonic() + 8.0)
+            for key, rows in extra.items():
+                results.setdefault(key, []).extend(rows)
+            status.update(extra_status)
+            degraded.append(
+                "required engine(s) %s unavailable; supplemented %s%s"
+                % (",".join(failed), ",".join(fallback),
+                   " (%s)" % extra_note if extra_note else ""))
+            supplemented = True
+    if pending_cache and not supplemented:
+        store = load_cache()
+        store[ckey] = {"at": now,
+                       "results": {k: [list(r) for r in v]
+                                   for k, v in results.items()},
+                       "status": status,
+                       "searxng_unresponsive": LAST_SEARXNG_UNRESPONSIVE}
+        save_cache(store)
     # domain filter: every engine/variant list, cache hits included (the
     # cache stays raw recall), always before RRF so filtered URLs never leak
     results, filtered = apply_domain_filter(results, include_domains,
                                             exclude_domains)
-    status.update(recall_status)
     # cooldown persistence: single writer here, never in workers (MF3)
     if use_cooldown and not cached:
         for e, s in recall_status.items():

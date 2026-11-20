@@ -28,8 +28,9 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 
 try:  # package import (installed, `python -m agg_search.mcp`)
-    from . import portals, profiles
+    from . import engine_specs, portals, profiles
 except ImportError:  # pragma: no cover - direct script execution
+    import engine_specs  # type: ignore[no-redef]
     import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
 
@@ -73,9 +74,7 @@ SEARCH_SCHEMA = {
         "engines": {
             "type": "array",
             "items": {"type": "string",
-                      "enum": ["exa", "brave", "serper", "deepseek",
-                               "firecrawl", "anysearch", "tavily", "searxng",
-                               "openalex", "hn", "stack"]},
+                      "enum": engine_specs.names()},
             "description": "Subset of engines to query. Omit for all configured "
                            "engines; engines without a key are skipped anyway.",
         },
@@ -214,8 +213,8 @@ ANSWER_SCHEMA = {
                 "properties": {
                     "title": {"type": "string"},
                     "url": {"type": "string"},
-                    "text": {"type": "string"},
-                    "snippet": {"type": "string"},
+                    "text": {"type": "string", "maxLength": 20000},
+                    "snippet": {"type": "string", "maxLength": 2000},
                 },
             },
             "description": "Search snippets or fetched texts to ground the answer.",
@@ -532,6 +531,39 @@ def _shape_result(name: str, output: str, stderr: str, code, timed_out: bool):
     return result
 
 
+MAX_SOURCE_CHARS = 20000
+MAX_ANSWER_CHARS = 60000
+
+
+def _bound_sources(sources, per=MAX_SOURCE_CHARS, total=MAX_ANSWER_CHARS):
+    """Trim caller-supplied source text before it becomes an LLM prompt.
+
+    Returns (bounded_sources, notes). Notes are surfaced in `degraded` so a
+    truncated answer is visible rather than silently different.
+    """
+    bounded, notes, used = [], [], 0
+    for item in sources:
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        text = str(row.get("text") or "")
+        snippet = str(row.get("snippet") or "")
+        if len(text) > per:
+            text = text[:per]
+            notes.append("source text truncated to %d chars" % per)
+        elif used + len(text) > total:
+            text = text[:max(0, total - used)]
+            notes.append("answer sources truncated at %d chars" % total)
+        used += len(text)
+        row["text"] = text
+        if len(snippet) > 2000:
+            row["snippet"] = snippet[:2000]
+        bounded.append(row)
+        if used >= total:
+            break
+    return bounded, notes
+
+
 def call_tool(name: str, arguments: dict, request_id=None):
     if name not in TOOL_MODULES:
         raise KeyError(name)
@@ -566,6 +598,8 @@ def call_tool(name: str, arguments: dict, request_id=None):
             if fetch_notes:
                 msg += " (%s)" % "; ".join(fetch_notes)
             return {"content": [{"type": "text", "text": msg}], "isError": True}
+        sources, bound_notes = _bound_sources(sources)
+        fetch_notes.extend(bound_notes)
         payload = json.dumps({
             "query": arguments["query"],
             "sources": sources,
