@@ -61,6 +61,7 @@ python3 -m agg_search.fetch --url <url...>
 - **DeepSeek Fetch 直取（阶梯第 0 级）**：配置了 `DEEPSEEK_API_KEY` 时，`auto` 先用官方 Fetch API（`POST /v1/tools/fetch`）在服务端取页并直接返回干净 Markdown —— 单次 HTTP 调用、约 1 秒、无需容器，且出口 IP 在服务商侧（可绕开本机网络/地域限制）。返回 403/404、内容过薄或超时会静默落入下方容器阶梯；`--tier deepseek` 只跑这一级，`--no-deepseek` 在 auto 中跳过它。
 - **容器隔离抓取**：`static`/`dynamic`/`stealth` 等抓取任务在轻量 `crawl-agent` Docker 容器内执行，宿主机无任何爬虫残留或浏览器依赖。
 - **三级自适应阶梯**：`auto` 模式自动按 `static` -> `dynamic` -> `stealth` 升级以绕过反爬封锁。
+- **失败分类**：失败或被拦截的结果带 `error_class`（固定词表：`ssrf_blocked`、`redirect_blocked`、`anti_bot`、`rate_limited`、`access_denied`、`http_4xx`、`http_5xx`、`timeout`、`tls`、`dns`、`connection`、`thin_content`、`too_large`、`no_credentials`、`other`）。`timeout`/`rate_limited`/`connection` 可稍后重试；`ssrf_blocked`/`redirect_blocked`/`dns` 不要重试。
 - 容器与抓取机制详见：`docs/fetching.md`。
 
 ### 3. 结果呈现与去重

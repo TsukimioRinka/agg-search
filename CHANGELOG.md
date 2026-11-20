@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.0] - 2026-11-20
+
+Structured fetch failures and stricter portal checks.
+
+### Added
+
+- `crawl-fetch` tags every failed or blocked result with `error_class`, a
+  fixed vocabulary (`ssrf_blocked`, `redirect_blocked`, `anti_bot`,
+  `rate_limited`, `access_denied`, `http_4xx`, `http_5xx`, `timeout`,
+  `tls`, `dns`, `connection`, `thin_content`, `too_large`,
+  `no_credentials`, `other`). It never echoes upstream text. The MCP
+  `fetch` `outputSchema` declares the same enum. Exit codes are unchanged.
+
+### Fixed
+
+- `agg-search-install --portal X --check` now fails when the entry exists but
+  is bound to another portal (or none), instead of reporting `ok`.
+
+### Tests
+
+- Regression test for the same-call keyless supplement when `openalex`
+  returns 429 on the first request (cooldown still written, result not cached).
+
+### Rejected after evaluation
+
+- `news` day->week widening on empty results: 0/20 empty `day` recalls on
+  niche queries, no measurable benefit (see `docs/benchmarks.md`, candidate F).
+
 ## [0.5.3] - 2026-11-20
 
 CLI and packaging hygiene.
