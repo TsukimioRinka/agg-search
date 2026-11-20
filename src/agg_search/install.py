@@ -216,6 +216,21 @@ def _prune_backups(path, keep=5):
             pass
 
 
+def _entry_portal(entry):
+    """Portal an MCP entry is bound to: env AGG_SEARCH_PORTAL or --portal arg."""
+    env = entry.get("env") if isinstance(entry.get("env"), dict) else {}
+    bound = env.get("AGG_SEARCH_PORTAL")
+    if bound:
+        return bound
+    args = entry.get("args") if isinstance(entry.get("args"), list) else []
+    for i, arg in enumerate(args):
+        if arg == "--portal" and i + 1 < len(args):
+            return args[i + 1]
+        if isinstance(arg, str) and arg.startswith("--portal="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 def check_client(name, info, runtime, server=None):
     """Report whether the client is actually wired up. Exit 0 only when the
     config parses, the entry exists and the runtime resolves."""
@@ -255,6 +270,13 @@ def check_client(name, info, runtime, server=None):
                               or shutil.which(command)):
                         problems.append("runtime %r does not resolve on PATH"
                                         % command)
+                    want = info.get("portal")
+                    if want:
+                        bound = _entry_portal(entry)
+                        if bound != want:
+                            problems.append(
+                                "entry %r is bound to portal %r, expected %r"
+                                % (target, bound, want))
 
     if not (os.path.isabs(runtime) or shutil.which(runtime)):
         problems.append("runtime %r does not resolve on PATH (GUI clients "
