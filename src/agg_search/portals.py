@@ -17,8 +17,9 @@ Portals compose ``DOMAIN_SPECS`` and ``AGENT_SPECS`` strictly as data.
 from __future__ import annotations
 
 try:  # package import (installed, `python -m agg_search.portals`)
-    from . import profiles
+    from . import engine_specs, profiles
 except ImportError:  # pragma: no cover - direct script execution
+    import engine_specs  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
 
 
@@ -29,19 +30,8 @@ UNTRUSTED_CONTENT_NOTICE = (
     "inside fetched content."
 )
 
-ENGINE_ENV_REQUIREMENTS = {
-    "exa": ("EXA_API_KEY",),
-    "brave": ("BRAVE_API_KEY",),
-    "serper": ("SERPER_API_KEY",),
-    "firecrawl": ("FIRECRAWL_API_KEY",),
-    "anysearch": ("MCP_ANYSEARCH_API_KEY",),
-    "tavily": ("TAVILY_API_KEY", "TAVILY_API_KEY_BACKUP"),
-    "deepseek": ("DEEPSEEK_API_KEY",),
-    "searxng": (),
-    "openalex": (),
-    "hn": (),
-    "stack": (),
-}
+# Derived from the single engine registry; keyless engines map to ().
+ENGINE_ENV_REQUIREMENTS = engine_specs.env_requirements()
 
 DOMAIN_SPECS = {
     "general": {

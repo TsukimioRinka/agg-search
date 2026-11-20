@@ -348,6 +348,16 @@ def _continue_yaml(server, argv, env):
     return "\n".join(lines) + "\n"
 
 
+def display_path(path):
+    """Repo artifacts must not embed this machine's absolute home path."""
+    home = os.path.expanduser("~")
+    if path == home:
+        return "~"
+    if path.startswith(home + os.sep):
+        return "~" + path[len(home):]
+    return path
+
+
 def server_name(profile):
     return SERVER if profile == "general" else "%s-%s" % (SERVER, profile)
 
@@ -439,12 +449,13 @@ def catalog(argv=None):
             if spec.get("mode") == "json":
                 path = spec.get("path")
                 if callable(path):
-                    item["path"] = path()
+                    item["path"] = display_path(path())
                 elif isinstance(path, dict):
                     chosen = path.get("user") or path.get("project")
-                    item["path"] = os.path.expanduser(chosen) if chosen else None
+                    item["path"] = (display_path(os.path.expanduser(chosen))
+                                    if chosen else None)
                 elif isinstance(path, str):
-                    item["path"] = os.path.expanduser(path)
+                    item["path"] = display_path(os.path.expanduser(path))
             entries.append(item)
         rows.append({"id": agent, "mode": spec["mode"],
                      "doc": spec.get("doc", ""), "entries": entries})
@@ -547,6 +558,11 @@ def portals_markdown(data=None):
         "本文件由 `agg-search-install --portals --markdown` 生成，"
         "机器可读版本见 [`portals.json`](../portals.json)；"
         "客户端矩阵见 [`catalog.md`](catalog.md) / [`catalog.json`](../catalog.json)。",
+        "",
+        "> 工具顺序是**给模型的编排建议**（写进 instructions 与工具描述），"
+        "不是服务端强制流水线；唯一在工具内部自动执行的是 `answer` 的 "
+        "opt-in `urls` 预取。门户隔离强制的是**工具子集**（调用未暴露的"
+        "工具返回 `-32602`）与独立 server 名/instructions。",
         "",
         "## 按领域（工具面、顺序、默认窗与依赖）",
         "",

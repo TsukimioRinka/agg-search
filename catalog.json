@@ -49,7 +49,7 @@
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "path": "/home/body/.gemini/config/mcp_config.json"
+          "path": "~/.gemini/config/mcp_config.json"
         },
         {
           "portal": "antigravity.code",
@@ -71,7 +71,7 @@
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "path": "/home/body/.gemini/config/mcp_config.json"
+          "path": "~/.gemini/config/mcp_config.json"
         },
         {
           "portal": "antigravity.general",
@@ -91,7 +91,7 @@
               "AGG_SEARCH_PORTAL": "antigravity.general"
             }
           },
-          "path": "/home/body/.gemini/config/mcp_config.json"
+          "path": "~/.gemini/config/mcp_config.json"
         },
         {
           "portal": "antigravity.news",
@@ -113,7 +113,7 @@
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "path": "/home/body/.gemini/config/mcp_config.json"
+          "path": "~/.gemini/config/mcp_config.json"
         }
       ]
     },
@@ -235,7 +235,7 @@
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+          "path": "~/.config/Claude/claude_desktop_config.json"
         },
         {
           "portal": "claude-desktop.code",
@@ -257,7 +257,7 @@
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+          "path": "~/.config/Claude/claude_desktop_config.json"
         },
         {
           "portal": "claude-desktop.general",
@@ -277,7 +277,7 @@
               "AGG_SEARCH_PORTAL": "claude-desktop.general"
             }
           },
-          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+          "path": "~/.config/Claude/claude_desktop_config.json"
         },
         {
           "portal": "claude-desktop.news",
@@ -299,7 +299,7 @@
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "path": "/home/body/.config/Claude/claude_desktop_config.json"
+          "path": "~/.config/Claude/claude_desktop_config.json"
         }
       ]
     },
@@ -330,7 +330,7 @@
             "disabled": false,
             "autoApprove": []
           },
-          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
+          "path": "~/.cline/data/settings/cline_mcp_settings.json"
         },
         {
           "portal": "cline.code",
@@ -354,7 +354,7 @@
             "disabled": false,
             "autoApprove": []
           },
-          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
+          "path": "~/.cline/data/settings/cline_mcp_settings.json"
         },
         {
           "portal": "cline.general",
@@ -376,7 +376,7 @@
             "disabled": false,
             "autoApprove": []
           },
-          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
+          "path": "~/.cline/data/settings/cline_mcp_settings.json"
         },
         {
           "portal": "cline.news",
@@ -400,7 +400,7 @@
             "disabled": false,
             "autoApprove": []
           },
-          "path": "/home/body/.cline/data/settings/cline_mcp_settings.json"
+          "path": "~/.cline/data/settings/cline_mcp_settings.json"
         }
       ]
     },
@@ -612,7 +612,7 @@
             }
           },
           "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-academic&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuYWNhZGVtaWMiLCAiQUdHX1NFQVJDSF9QUk9GSUxFIjogImFjYWRlbWljIn19",
-          "path": "/home/body/.cursor/mcp.json"
+          "path": "~/.cursor/mcp.json"
         },
         {
           "portal": "cursor.code",
@@ -635,7 +635,7 @@
             }
           },
           "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-code&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuY29kZSIsICJBR0dfU0VBUkNIX1BST0ZJTEUiOiAiY29kZSJ9fQ%3D%3D",
-          "path": "/home/body/.cursor/mcp.json"
+          "path": "~/.cursor/mcp.json"
         },
         {
           "portal": "cursor.general",
@@ -656,7 +656,7 @@
             }
           },
           "deeplink": "https://cursor.com/en/install-mcp?name=agg-search&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuZ2VuZXJhbCJ9fQ%3D%3D",
-          "path": "/home/body/.cursor/mcp.json"
+          "path": "~/.cursor/mcp.json"
         },
         {
           "portal": "cursor.news",
@@ -679,7 +679,7 @@
             }
           },
           "deeplink": "https://cursor.com/en/install-mcp?name=agg-search-news&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IubmV3cyIsICJBR0dfU0VBUkNIX1BST0ZJTEUiOiAibmV3cyJ9fQ%3D%3D",
-          "path": "/home/body/.cursor/mcp.json"
+          "path": "~/.cursor/mcp.json"
         }
       ]
     },
@@ -710,7 +710,7 @@
             "timeout": 30000,
             "trust": false
           },
-          "path": "/home/body/.gemini/settings.json"
+          "path": "~/.gemini/settings.json"
         },
         {
           "portal": "gemini.code",
@@ -734,7 +734,7 @@
             "timeout": 30000,
             "trust": false
           },
-          "path": "/home/body/.gemini/settings.json"
+          "path": "~/.gemini/settings.json"
         },
         {
           "portal": "gemini.general",
@@ -756,7 +756,7 @@
             "timeout": 30000,
             "trust": false
           },
-          "path": "/home/body/.gemini/settings.json"
+          "path": "~/.gemini/settings.json"
         },
         {
           "portal": "gemini.news",
@@ -780,7 +780,7 @@
             "timeout": 30000,
             "trust": false
           },
-          "path": "/home/body/.gemini/settings.json"
+          "path": "~/.gemini/settings.json"
         }
       ]
     },
@@ -899,7 +899,7 @@
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "path": "/home/body/.config/opencode/opencode.json"
+          "path": "~/.config/opencode/opencode.json"
         },
         {
           "portal": "opencode.code",
@@ -922,7 +922,7 @@
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "path": "/home/body/.config/opencode/opencode.json"
+          "path": "~/.config/opencode/opencode.json"
         },
         {
           "portal": "opencode.general",
@@ -943,7 +943,7 @@
               "AGG_SEARCH_PORTAL": "opencode.general"
             }
           },
-          "path": "/home/body/.config/opencode/opencode.json"
+          "path": "~/.config/opencode/opencode.json"
         },
         {
           "portal": "opencode.news",
@@ -966,7 +966,7 @@
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "path": "/home/body/.config/opencode/opencode.json"
+          "path": "~/.config/opencode/opencode.json"
         }
       ]
     },
@@ -1096,7 +1096,7 @@
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "path": "/home/body/.codeium/windsurf/mcp_config.json"
+          "path": "~/.codeium/windsurf/mcp_config.json"
         },
         {
           "portal": "windsurf.code",
@@ -1118,7 +1118,7 @@
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "path": "/home/body/.codeium/windsurf/mcp_config.json"
+          "path": "~/.codeium/windsurf/mcp_config.json"
         },
         {
           "portal": "windsurf.general",
@@ -1138,7 +1138,7 @@
               "AGG_SEARCH_PORTAL": "windsurf.general"
             }
           },
-          "path": "/home/body/.codeium/windsurf/mcp_config.json"
+          "path": "~/.codeium/windsurf/mcp_config.json"
         },
         {
           "portal": "windsurf.news",
@@ -1160,7 +1160,7 @@
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "path": "/home/body/.codeium/windsurf/mcp_config.json"
+          "path": "~/.codeium/windsurf/mcp_config.json"
         }
       ]
     },
@@ -1189,7 +1189,7 @@
               "AGG_SEARCH_PROFILE": "academic"
             }
           },
-          "path": "/home/body/.config/zed/settings.json"
+          "path": "~/.config/zed/settings.json"
         },
         {
           "portal": "zed.code",
@@ -1211,7 +1211,7 @@
               "AGG_SEARCH_PROFILE": "code"
             }
           },
-          "path": "/home/body/.config/zed/settings.json"
+          "path": "~/.config/zed/settings.json"
         },
         {
           "portal": "zed.general",
@@ -1231,7 +1231,7 @@
               "AGG_SEARCH_PORTAL": "zed.general"
             }
           },
-          "path": "/home/body/.config/zed/settings.json"
+          "path": "~/.config/zed/settings.json"
         },
         {
           "portal": "zed.news",
@@ -1253,7 +1253,7 @@
               "AGG_SEARCH_PROFILE": "news"
             }
           },
-          "path": "/home/body/.config/zed/settings.json"
+          "path": "~/.config/zed/settings.json"
         }
       ]
     }

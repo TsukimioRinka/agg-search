@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased] — target 0.5.1
+
+Hardening pass from the post-0.5.0 review: one engine registry, runtime
+fallback, answer caps and portable artifacts.
+
+### Added
+
+- `agg_search.engine_specs` is now the single source of engine metadata.
+  `search.ENGINES`/`CREDENTIAL_ENV`/`DEFAULT_ENGINES`, the MCP `engines` enum
+  and the portal dependency table all derive from it, with a parity test that
+  fails if the layers drift. Adding an engine no longer means editing five
+  registries by hand.
+- Portal runtime fallback: when a required engine fails or cools down *after*
+  the credential prefilter, the portal recalls its keyless fallbacks (bounded
+  to 8s), merges the rows and records the reason in `engine_health.degraded`.
+  Supplemented results are not cached, because they depend on the failure.
+- Answer input caps: caller-supplied `sources[].text` is limited to 20k
+  characters each and 60k total (schema + runtime), with truncation surfaced
+  in `degraded`.
+
+### Changed
+
+- Generated catalog artifacts use `~/...` instead of absolute home paths, so
+  `catalog.json` no longer carries this machine's home directory.
+- `--answer` help and README state that `auto` can fall through to the billable
+  DeepSeek API; use `--answer local` to guarantee zero cost.
+- `docs/portals.md` states explicitly that tool order is model guidance, not a
+  server-enforced pipeline (only opt-in `answer(urls=...)` prefetch executes
+  order internally).
+
 ## [0.5.0] - 2026-11-20
 
 Portal isolation (`agent × domain`), domain-tuned prompts and tool ordering,
