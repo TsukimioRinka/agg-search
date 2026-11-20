@@ -802,13 +802,29 @@ def eng_hn(q, n, recency):
     return out, None
 
 
-def eng_stack(q, n, recency):
-    """Stack Exchange Q&A (keyless; STACKEXCHANGE_SITE picks the site)."""
+_SE_SITE_RE = re.compile(r"^[a-z][a-z0-9.\-]{1,40}$")
+MAX_SE_SITES = 4
+
+
+def stack_sites():
+    """STACKEXCHANGE_SITE: one site (default stackoverflow) or an opt-in comma
+    list such as `stackoverflow,unix,serverfault` (max 4). Each extra site is
+    one more request against the shared keyless quota (300/day per IP)."""
+    raw = getenv("STACKEXCHANGE_SITE", "stackoverflow") or "stackoverflow"
+    sites = []
+    for tok in raw.split(","):
+        tok = tok.strip().lower()
+        if _SE_SITE_RE.match(tok) and tok not in sites:
+            sites.append(tok)
+    return sites[:MAX_SE_SITES] or ["stackoverflow"]
+
+
+def _stack_site(q, n, recency, site):
     params = {
         "order": "desc",
         "sort": "relevance",
         "q": q,
-        "site": getenv("STACKEXCHANGE_SITE", "stackoverflow"),
+        "site": site,
         "pagesize": min(n, 20),
         "filter": "withbody",
     }
@@ -826,6 +842,30 @@ def eng_stack(q, n, recency):
         out.append((norm_url(item.get("link") or ""),
                     clean_text(html.unescape(item.get("title") or "")),
                     clean_text(body[:400])))
+    return out
+
+
+def eng_stack(q, n, recency):
+    """Stack Exchange Q&A (keyless; STACKEXCHANGE_SITE picks the site(s)).
+    Several sites are queried in parallel and interleaved rank by rank; the
+    engine fails only when every site failed."""
+    sites = stack_sites()
+    if len(sites) == 1:
+        return _stack_site(q, n, recency, sites[0]), None
+    lists, first_err = [], None
+    with cf.ThreadPoolExecutor(max_workers=len(sites)) as ex:
+        futs = [ex.submit(_stack_site, q, n, recency, site) for site in sites]
+        for fut in futs:
+            try:
+                lists.append(fut.result())
+            except Exception as exc:  # noqa: BLE001 - per-site failure
+                first_err = first_err or exc
+    if not lists:
+        raise first_err
+    out, i = [], 0
+    while any(i < len(rows) for rows in lists):
+        out.extend(rows[i] for rows in lists if i < len(rows))
+        i += 1
     return out, None
 
 

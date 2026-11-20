@@ -29,7 +29,7 @@ agg-search "openai board" --profile news --top-n 5
 |---|---|---|
 | `openalex` | OpenAlex 学术作品（含摘要重建、DOI 链接） | `OPENALEX_API_KEY`（更高日额度）、`OPENALEX_MAILTO`（polite pool） |
 | `hn` | Hacker News（Algolia API） | — |
-| `stack` | Stack Exchange 问答 | `STACKEXCHANGE_SITE`（默认 `stackoverflow`）、`STACKEXCHANGE_KEY` |
+| `stack` | Stack Exchange 问答 | `STACKEXCHANGE_SITE`（默认 `stackoverflow`；逗号列表可多站点，见 environment.md）、`STACKEXCHANGE_KEY` |
 | `arxiv` | arXiv 预印本（Atom API，只用拉丁字母关键词做 AND 检索） | —（不进默认引擎；作为 `academic` 门户的免 key 补召源） |
 
 新闻垂直引擎复用已有 key，请求数不变：`brave_news`（Brave News，`BRAVE_API_KEY`）、`serper_news`（Google News，`SERPER_API_KEY`）。摘要前缀是服务商给的发布日期，例如 `[2026-11-20]` 或 `[4 hours ago]`。
