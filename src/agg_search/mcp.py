@@ -545,13 +545,16 @@ def _bound_sources(sources, per=MAX_SOURCE_CHARS, total=MAX_ANSWER_CHARS):
     for item in sources:
         if not isinstance(item, dict):
             continue
+        if used >= total:
+            notes.append("answer sources truncated at %d chars" % total)
+            break
         row = dict(item)
         text = str(row.get("text") or "")
         snippet = str(row.get("snippet") or "")
         if len(text) > per:
             text = text[:per]
             notes.append("source text truncated to %d chars" % per)
-        elif used + len(text) > total:
+        if used + len(text) > total:
             text = text[:max(0, total - used)]
             notes.append("answer sources truncated at %d chars" % total)
         used += len(text)
@@ -559,8 +562,6 @@ def _bound_sources(sources, per=MAX_SOURCE_CHARS, total=MAX_ANSWER_CHARS):
         if len(snippet) > 2000:
             row["snippet"] = snippet[:2000]
         bounded.append(row)
-        if used >= total:
-            break
     return bounded, notes
 
 

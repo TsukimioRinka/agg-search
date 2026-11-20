@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — target 0.5.1
+## [0.5.1] - 2026-11-20
 
 Hardening pass from the post-0.5.0 review: one engine registry, runtime
 fallback, answer caps and portable artifacts.
@@ -17,8 +17,9 @@ fallback, answer caps and portable artifacts.
   to 8s), merges the rows and records the reason in `engine_health.degraded`.
   Supplemented results are not cached, because they depend on the failure.
 - Answer input caps: caller-supplied `sources[].text` is limited to 20k
-  characters each and 60k total (schema + runtime), with truncation surfaced
-  in `degraded`.
+  characters each and 60k total (schema + runtime), enforcing per-item and
+  total bounds independently and recording truncation (including dropped
+  trailing sources) in `degraded`.
 
 ### Changed
 

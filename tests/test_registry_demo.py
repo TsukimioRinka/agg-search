@@ -79,6 +79,24 @@ class AnswerBoundsTest(unittest.TestCase):
             "properties"]["text"]
         self.assertEqual(text["maxLength"], 20000)
 
+    def test_combined_per_item_and_total_cap_enforced(self):
+        sources = [{"title": f"t{i}", "text": "x" * n}
+                   for i, n in enumerate((15000, 15000, 15000, 25000))]
+        bounded, notes = mcp._bound_sources(sources)
+        total = sum(len(row.get("text") or "") for row in bounded)
+        self.assertEqual(total, mcp.MAX_ANSWER_CHARS)
+        self.assertIn("source text truncated to 20000 chars", notes)
+        self.assertIn("answer sources truncated at 60000 chars", notes)
+
+    def test_dropped_trailing_source_records_degraded_note(self):
+        sources = [{"title": f"t{i}", "text": "x" * 20000}
+                   for i in range(4)]
+        bounded, notes = mcp._bound_sources(sources)
+        total = sum(len(row.get("text") or "") for row in bounded)
+        self.assertEqual(len(bounded), 3)
+        self.assertEqual(total, mcp.MAX_ANSWER_CHARS)
+        self.assertIn("answer sources truncated at 60000 chars", notes)
+
 
 class ArtifactHygieneTest(unittest.TestCase):
     def test_catalog_has_no_absolute_home_paths(self):
