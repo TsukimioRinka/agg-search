@@ -57,6 +57,69 @@ CACHE_TTL = 900
 MAX_CACHE_ENTRIES = 100
 
 
+ERROR_CLASSES = ("ssrf_blocked", "redirect_blocked", "anti_bot", "rate_limited",
+                 "access_denied", "http_4xx", "http_5xx", "timeout", "tls", "dns",
+                 "connection", "thin_content", "too_large", "no_credentials",
+                 "other")
+
+
+def classify_error(d):
+    """Fixed-vocabulary failure class for a result dict (never echoes text).
+
+    Lets callers tell an upstream anti-bot wall from a timeout, TLS or DNS
+    fault without parsing free-form error strings. Returns None for usable
+    results."""
+    err = str(d.get("error") or "")
+    low = err.lower()
+    status = d.get("status")
+    if not err and not d.get("blocked"):
+        return None
+    if "cannot resolve host" in low:
+        return "dns"
+    if d.get("tier_used") == "guard" or low.startswith("blocked: ") and \
+            "redirect" not in low:
+        return "ssrf_blocked"
+    if "redirect target" in low:
+        return "redirect_blocked"
+    m = re.search(r"http (\d{3})", low)
+    code = int(m.group(1)) if m else (status if isinstance(status, int) else 0)
+    if code == 429:
+        return "rate_limited"
+    if code in (401, 403):
+        return "access_denied" if err else "anti_bot"
+    if "no deepseek_api_key" in low:
+        return "no_credentials"
+    if "timeout" in low or "timed out" in low:
+        return "timeout"
+    if any(t in low for t in ("ssl", "certificate", "tls")):
+        return "tls"
+    if any(t in low for t in ("name or service", "getaddrinfo", "name_not_resolved",
+                              "nameresolution", "nodename")):
+        return "dns"
+    if any(t in low for t in ("connection refused", "connection reset",
+                              "err_connection", "connectionerror", "remotedisconnected")):
+        return "connection"
+    if "thin content" in low:
+        return "thin_content"
+    if "too large" in low:
+        return "too_large"
+    if 400 <= code < 500:
+        return "http_4xx"
+    if code >= 500:
+        return "http_5xx"
+    if d.get("blocked"):
+        return "anti_bot"
+    return "other"
+
+
+def emit(d):
+    """Print one result as a JSON line, tagging failures with error_class."""
+    cls = classify_error(d)
+    if cls:
+        d = dict(d, error_class=cls)
+    print(json.dumps(d, ensure_ascii=False))
+
+
 def cache_key(url, a):
     parts = [url, a.tier, a.out, str(a.text_limit),
              str(bool(getattr(a, "allow_private", False)))]
@@ -333,9 +396,8 @@ def main():
         if good:
             guarded.append(u)
             continue
-        print(json.dumps({"url": u, "error": "blocked: " + reason,
-                          "blocked": True, "tier_used": "guard"},
-                         ensure_ascii=False))
+        emit({"url": u, "error": "blocked: " + reason,
+              "blocked": True, "tier_used": "guard"})
         blocked = True
     if not guarded:
         return 3
@@ -376,7 +438,7 @@ def main():
                 leftover.append(u)
                 blocked = blocked or d["blocked"]
                 if a.tier == "deepseek":  # auto defers silently to the ladder
-                    print(json.dumps(d, ensure_ascii=False))
+                    emit(d)
                 continue
             print(json.dumps(d, ensure_ascii=False))
             remember(d)
@@ -443,10 +505,15 @@ def main():
         line = line.strip()
         if not line.startswith("{"):
             continue
-        print(line)
         try:
             d = json.loads(line)
         except json.JSONDecodeError:
+            print(line)
+            continue
+        if isinstance(d, dict):
+            emit(d)
+        else:
+            print(line)
             continue
         if d.get("error"):
             continue

@@ -26,6 +26,12 @@ PYTHONPATH=src python3 -m agg_search.fetch --url <url...>
 
 `crawl-fetch` exit codes: `0` = ≥1 URL ok (JSON lines on stdout);
 `1` = all failed; `2` = launcher/image missing; `3` = blocked on every URL.
+
+Every failed or blocked JSON line also carries `error_class`, a fixed
+vocabulary: `ssrf_blocked`, `redirect_blocked`, `anti_bot`, `rate_limited`,
+`access_denied`, `http_4xx`, `http_5xx`, `timeout`, `tls`, `dns`, `connection`,
+`thin_content`, `too_large`, `no_credentials`, `other`. It is derived locally
+and never echoes page or upstream text. Exit codes are unchanged.
 Each URL yields exactly one JSON line (`tier_used` says which rung served it).
 
 ## Tiers
