@@ -476,9 +476,12 @@ def create_server(host="127.0.0.1", port=8765, path=DEFAULT_PATH,
 
 
 def main(argv=None):
+    from agg_search import __version__
     parser = argparse.ArgumentParser(
         prog="python -m agg_search.http_transport",
         description="Streamable HTTP (MCP 2025-06-18) for agg-search.")
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s {__version__}")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--path", default=DEFAULT_PATH)

@@ -676,8 +676,11 @@ def describe(name, argv, env, scope, server=SERVER):
 
 
 def main(argv=None):
+    from agg_search import __version__
     ap = argparse.ArgumentParser(
         description="Register agg-search in an MCP client's config.")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     ap.add_argument("--client", "-c", required=False,
                     choices=sorted(CLIENTS), default=None,
                     help="target client; --list shows them all")

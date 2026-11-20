@@ -293,7 +293,10 @@ def find_launcher():
 
 
 def main():
+    from agg_search import __version__
     ap = argparse.ArgumentParser(description="tiered page fetch: DeepSeek Fetch API rung + container ladder")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     ap.add_argument("--url", action="append", required=True)
     ap.add_argument("--tier", default="auto",
                     choices=("auto", "deepseek", "static", "dynamic", "stealth"))

@@ -185,9 +185,12 @@ def report():
 
 
 def main(argv=None):
+    from agg_search import __version__
     ap = argparse.ArgumentParser(
         description="Turn local surfaced/used feedback into RRF weight "
                     "multipliers (stored in ~/.config/agg-search/weights.json).")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     ap.add_argument("--show", action="store_true",
                     help="print the feedback table and current weights, "
                          "write nothing")

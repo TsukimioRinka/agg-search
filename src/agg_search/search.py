@@ -1475,8 +1475,11 @@ def _run_answer_sources(path_or_dash, portal, profile_name, prompts,
 
 
 def main():
+    from agg_search import __version__
     global ENGINE_TIMEOUT, _FAST_MODE
     ap = argparse.ArgumentParser(description="parallel multi-engine search + RRF + jina rerank")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     ap.add_argument("query", nargs="?", help="search query")
     ap.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
                     help="results to return (default: %(default)s; "
