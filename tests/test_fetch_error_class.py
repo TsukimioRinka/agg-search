@@ -52,6 +52,14 @@ class ClassifyTest(unittest.TestCase):
         self.assertIn(got, m.ERROR_CLASSES)
 
 
+class SchemaTest(unittest.TestCase):
+    def test_mcp_fetch_schema_declares_the_same_vocabulary(self):
+        from agg_search import mcp
+        item = mcp.FETCH_OUTPUT_SCHEMA["properties"]["results"]["items"]
+        self.assertEqual(item["properties"]["error_class"]["enum"],
+                         list(m.ERROR_CLASSES))
+
+
 class EmitTest(unittest.TestCase):
     def test_container_failure_lines_gain_error_class(self):
         line = json.dumps({"url": "https://example.com/", "tier_used": "static",

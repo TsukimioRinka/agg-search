@@ -29,10 +29,12 @@ from importlib.metadata import version as _dist_version
 
 try:  # package import (installed, `python -m agg_search.mcp`)
     from . import engine_specs, portals, profiles
+    from .fetch import ERROR_CLASSES
 except ImportError:  # pragma: no cover - direct script execution
     import engine_specs  # type: ignore[no-redef]
     import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
+    from fetch import ERROR_CLASSES  # type: ignore[no-redef]
 
 SERVER_NAME = "agg-search"
 PROTOCOL_VERSION = "2025-06-18"
@@ -193,6 +195,8 @@ FETCH_OUTPUT_SCHEMA = {
                     "markdown": {"type": "string"},
                     "blocked": {"type": "boolean"},
                     "error": {"type": "string"},
+                    "error_class": {"type": "string",
+                                    "enum": list(ERROR_CLASSES)},
                 },
                 "required": ["url", "tier_used", "blocked"],
             },
