@@ -560,23 +560,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -587,8 +587,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -597,10 +597,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -1207,23 +1207,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -1234,8 +1234,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -1244,10 +1244,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -1862,23 +1862,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -1889,8 +1889,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -1899,10 +1899,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -2527,23 +2527,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -2554,8 +2554,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -2564,10 +2564,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -3176,23 +3176,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -3203,8 +3203,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -3213,10 +3213,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -3822,23 +3822,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -3849,8 +3849,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -3859,10 +3859,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -4481,23 +4481,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -4508,8 +4508,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -4518,10 +4518,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -5147,23 +5147,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -5174,8 +5174,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -5184,10 +5184,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -5796,23 +5796,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -5823,8 +5823,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -5833,10 +5833,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -6451,23 +6451,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -6478,8 +6478,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -6488,10 +6488,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -7116,23 +7116,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -7143,8 +7143,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -7153,10 +7153,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -7783,23 +7783,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -7810,8 +7810,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -7820,10 +7820,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -8444,23 +8444,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -8471,8 +8471,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -8481,10 +8481,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [
@@ -9103,23 +9103,23 @@
       },
       "defaults": {
         "engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
         "primary": [
-          "brave_news"
+          "brave"
         ],
         "weights": {
-          "brave_news": 1.3,
-          "serper_news": 1.2,
+          "brave": 1.3,
+          "serper": 1.2,
           "tavily": 1.1
         },
         "recency": "day",
         "snippet_chars": 300,
         "top_n": null,
-        "rerank_blend": 0.3,
+        "rerank_blend": null,
         "authority_boost": null,
         "expand": 0,
         "answer_order": [
@@ -9130,8 +9130,8 @@
       "dependencies": {
         "required_engines": [],
         "optional_engines": [
-          "brave_news",
-          "serper_news",
+          "brave",
+          "serper",
           "tavily",
           "firecrawl"
         ],
@@ -9140,10 +9140,10 @@
           "searxng"
         ],
         "env_keys": {
-          "brave_news": [
+          "brave": [
             "BRAVE_API_KEY"
           ],
-          "serper_news": [
+          "serper": [
             "SERPER_API_KEY"
           ],
           "tavily": [

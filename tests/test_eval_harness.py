@@ -41,7 +41,7 @@ class VariantTest(unittest.TestCase):
         prof = profiles.load("news")
         cfg = ev.parse_variant("A:engines=brave,serper", prof)
         self.assertEqual(cfg["engines"], ["brave", "serper"])
-        self.assertEqual(ev.parse_variant("current", prof)["blend"], 0.3)
+        self.assertIsNone(ev.parse_variant("current", prof)["blend"])  # news: pure Jina
         with self.assertRaises(SystemExit):
             ev.parse_variant("X:bogus=1", prof)
 
@@ -104,9 +104,12 @@ class JudgeRecordTest(unittest.TestCase):
     def test_judge_is_resumable_and_never_regrades(self):
         calls = []
 
-        def fake(q, t, s, rubric, model):
+        def fake(q, t, s, rubric, model, today=None):
             calls.append(t)
+            seen_today.add(today)
             return 2
+
+        seen_today = set()
 
         with tempfile.TemporaryDirectory() as d:
             fx, out = os.path.join(d, "fx.json"), os.path.join(d, "j.json")
@@ -123,7 +126,21 @@ class JudgeRecordTest(unittest.TestCase):
             with open(out) as f:
                 labels = json.load(f)
         self.assertEqual(sorted(calls), ["B", "P"])
+        self.assertEqual(len(seen_today), 1)  # one reference date per run
+        self.assertRegex(seen_today.pop(), r"^\d{4}-\d{2}-\d{2}$")
         self.assertEqual(labels["q1"]["https://a.test/x"], 1)
+
+    def test_prompt_carries_reference_date(self):
+        seen = {}
+
+        def fake_http(url, **kw):
+            seen["prompt"] = kw["body"]["prompt"]
+            return {"response": "2"}
+
+        with mock.patch.object(search, "http_json", fake_http):
+            self.assertEqual(ev._qwen_grade("q", "t", "s", "news", "m",
+                                            "2026-11-20"), 2)
+        self.assertIn("The search was made on 2026-11-20.", seen["prompt"])
 
     def test_record_skips_cooling_engines(self):
         seen = {}
