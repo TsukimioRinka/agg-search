@@ -216,6 +216,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 第 21 轮：问句型新闻 16 条（候选 M），确认 web 端点默认；新闻共 58 条、三种类型的评测到此定稿。
 - 第 22 轮：发布构建改为哈希锁定 + `--no-isolation`，加 Dependabot（PR #13）；手动触发 `publish` 的 build 作业已成功。
 - 第 23 轮：`docs/stability.md` 稳定性承诺 + 同步测试（文档必须列出所有命令、MCP 工具、协议版本、画像、server 名与 `error_class`）；分类器改为 Production/Stable；发布 1.0.0。
+- 本机回落 0.10.0 → 1.0.0；三门户握手 1.0.0、工具 2/3/2、prompts 正常；元数据 exit 3；example.com 200；`--check` ok；`--show-config` 只有布尔值；无痕 OMP 会话返回真实 DOI。回滚备份 `~/.omp/agent/backups/mcp.json.20261121-013024`；回滚命令 `uv tool install --force agg-search==0.10.0`。真实 Release 上 `publish` 的哈希锁定 build 作业成功（pypi 作业因 `PYPI_PUBLISH` 未设而跳过，属预期；PyPI 由 `uv publish` 上传）。
 - **之后的节奏**：1.0 发布后暂停主动迭代，等待 GitHub 社区反馈（issues/PR/Dependabot）。下一位 Agent 开工时先看 `gh issue list`、`gh pr list`（含 Dependabot 分组 PR），按反馈排期；任何稳定接口的改动都要遵守 `docs/stability.md` 的弃用流程。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
