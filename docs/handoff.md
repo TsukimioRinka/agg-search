@@ -110,7 +110,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - `--expand` 默认保持 `0`（实测本地 `qwen3.5:9b` 在 `expand=3` 会幻觉实体/年份且多倍消耗引擎额度）；`--answer-fetch` 默认保持 `0`（容器抓反爬页延迟最高 +26.7s）。
 - 反馈回路只在经由本工具 `fetch` 读到页面时记 `used`；纯 CLI 用户乘数停在 1.0。
 - GUI 客户端（Cursor/VS Code/Cline/Windsurf/Zed/Continue/Claude Desktop）未实测，只有配置与深链；CLI 实测记录见 `docs/agent-tests.md`。
-- `publish.yml` 里 `pip install build` 未做 hash 锁定（项目运行时零依赖，风险低）。
+- `publish.yml` 的构建工具已按哈希锁定（`.github/requirements-build.txt`，`--no-isolation`），由 Dependabot 每周更新。
 
 ## 6. 给下一个检查者的最小清单
 
