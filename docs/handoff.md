@@ -162,6 +162,12 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 5. 任何时刻不得 `cat`/`echo`/提交 `~/.config/agent-env`、`~/.config/pypi-token`、`~/.config/mcp-publisher/token.json`；错误输出也不能带出它们的值。
 6. 不把测试用的环境变量（`AGG_SEARCH_*`、`HOME`、`XDG_*`）写进 shell 的持久配置或仓库文件。
 
+## 7.1 第 6 轮记录（0.5.3，CLI 与打包债）
+
+- 完成：7 个入口全部支持 `--version`、SPDX license 元数据、Actions 钉到 Node 24 SHA。本轮未起隔离实验目录，无 `/tmp/agg-lab-*` 需清理；`dist/`、`build/`、`egg-info` 已删。
+- 本机回落：`uv tool` 升到 0.5.3；`omp.general/academic/code` 握手版本 0.5.3、工具数 2/3/2；元数据 exit 3，example.com 200；无痕 OMP 会话调用 `agg-search-academic` 的 `openalex` 返回真实 DOI 链接且 `engine_health.portal=omp.academic`。回滚备份 `~/.omp/agent/backups/mcp.json.*`（本轮未改 mcp.json）。
+- 下一轮优先：`news` 空结果自适应时间窗回退（需 A/B 门禁），其次 `agg-search-install --portal omp.* --check` 单测，再次 `crawl-fetch` 失败分类。
+
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 
 0.5.0 已完成：`portals.json` / `docs/portals.md` / `agg-search-install --portal`、按门户隔离工具子集/顺序与领域 prompt、缺失依赖降级与 `engine_health.degraded`、5 项增强机制对照评测（合入内容去重、权威域先验、`code blend=0.4`、opt-in `--answer-fetch`；拒绝默认 `--expand`）及 6 CLI 客户端隔离端到端验证。
