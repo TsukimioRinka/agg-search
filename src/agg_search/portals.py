@@ -128,7 +128,7 @@ DOMAIN_SPECS = {
             },
         ),
         "required_engines": ("openalex",),
-        "keyless_fallback": ("openalex", "searxng"),
+        "keyless_fallback": ("openalex", "arxiv", "searxng"),
         "prompts": {
             "expand": (
                 "Rewrite the research topic below into {count} concise academic "
@@ -198,7 +198,7 @@ DOMAIN_SPECS = {
             },
         ),
         "required_engines": ("stack",),
-        "keyless_fallback": ("stack", "hn"),
+        "keyless_fallback": ("stack", "searxng", "hn"),
         "prompts": {
             "expand": (
                 "Generate {count} developer search queries for the programming "

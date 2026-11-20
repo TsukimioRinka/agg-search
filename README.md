@@ -182,7 +182,7 @@ agg-search --list-profiles
 agg-search-install -c cursor --profile code --write    # 把某个客户端钉在 code 画像上
 ```
 
-同一套数据也通过 MCP 暴露：工具参数 `profile`，或环境变量 `AGG_SEARCH_PROFILE`。优先级 **flag > env > profile > 内置默认**；`openalex` / `hn` / `stack` 三个新引擎全部免 key，装好就能用。
+同一套数据也通过 MCP 暴露：工具参数 `profile`，或环境变量 `AGG_SEARCH_PROFILE`。优先级 **flag > env > profile > 内置默认**；`openalex` / `hn` / `stack` / `arxiv` 免 key，装好就能用；`news` 画像改用 `brave_news` / `serper_news` 新闻垂直端点（复用原 key）。
 
 ### 反馈回路
 

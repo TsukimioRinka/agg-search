@@ -301,6 +301,8 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
     def test_academic_portal_falls_back_to_searxng_when_openalex_cooling(self):
         import time as _time
         orig_sx = search.ENGINES["searxng"]
+        orig_ax = search.ENGINES["arxiv"]
+        search.ENGINES["arxiv"] = (lambda q, n, r: ([], None), orig_ax[1])
         search.ENGINES["searxng"] = (
             lambda q, n, r: ([("https://arxiv.org/abs/2211.17192",
                                "Speculative Decoding", "paper")], None),
@@ -326,17 +328,20 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
                 search.main()
         finally:
             search.ENGINES["searxng"] = orig_sx
+            search.ENGINES["arxiv"] = orig_ax
 
         payload = json.loads(buf.getvalue())
         self.assertEqual(payload["engine_health"]["portal"], "codex.academic")
         self.assertEqual(payload["results"][0]["engines"], ["searxng"])
         joined = " | ".join(payload["engine_health"]["degraded"])
         self.assertIn("engine openalex cooling", joined)
-        self.assertIn("fell back to keyless: searxng", joined)
+        self.assertIn("fell back to keyless: arxiv,searxng", joined)
 
     def test_academic_first_429_supplements_in_the_same_call(self):
         orig_oa = search.ENGINES["openalex"]
         orig_sx = search.ENGINES["searxng"]
+        orig_ax = search.ENGINES["arxiv"]
+        search.ENGINES["arxiv"] = (lambda q, n, r: ([], None), orig_ax[1])
         search.ENGINES["openalex"] = (
             lambda q, n, r: (None, "HTTPError: HTTP Error 429: Too Many Requests"),
             orig_oa[1])
@@ -361,12 +366,13 @@ class DomainPromptAndFallbackTest(unittest.TestCase):
         finally:
             search.ENGINES["openalex"] = orig_oa
             search.ENGINES["searxng"] = orig_sx
+            search.ENGINES["arxiv"] = orig_ax
 
         payload = json.loads(buf.getvalue())
         self.assertEqual(payload["results"][0]["engines"], ["searxng"])
         joined = " | ".join(payload["engine_health"]["degraded"])
         self.assertIn("required engine(s) openalex unavailable; "
-                      "supplemented searxng", joined)
+                      "supplemented arxiv,searxng", joined)
         self.assertIn("openalex", saved)       # 429 still starts a cooldown
         save_cache.assert_not_called()         # supplemented rows never cached
 
