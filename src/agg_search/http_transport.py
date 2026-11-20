@@ -476,7 +476,10 @@ def create_server(host="127.0.0.1", port=8765, path=DEFAULT_PATH,
 
 
 def main(argv=None):
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     parser = argparse.ArgumentParser(
         prog="python -m agg_search.http_transport",
         description="Streamable HTTP (MCP 2025-06-18) for agg-search.")

@@ -185,7 +185,10 @@ def report():
 
 
 def main(argv=None):
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     ap = argparse.ArgumentParser(
         description="Turn local surfaced/used feedback into RRF weight "
                     "multipliers (stored in ~/.config/agg-search/weights.json).")

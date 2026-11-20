@@ -356,7 +356,10 @@ def find_launcher():
 
 
 def main():
-    from agg_search import __version__
+    try:
+        from agg_search import __version__
+    except ImportError:  # plain-script run from a checkout
+        __version__ = "0.0.0+source"
     ap = argparse.ArgumentParser(description="tiered page fetch: DeepSeek Fetch API rung + container ladder")
     ap.add_argument("--version", action="version",
                     version=f"%(prog)s {__version__}")
