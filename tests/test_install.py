@@ -158,6 +158,42 @@ class CheckTest(unittest.TestCase):
         with mock.patch.object(install.shutil, "which", return_value=None):
             self.assertEqual(install.check_client("cursor", info, "uvx"), 1)
 
+    def _portal_info(self, portal="omp.academic"):
+        from agg_search import portals
+        pt = portals.load(portal)
+        info = install.describe("omp", ["uvx"], dict(pt["env"]), "user",
+                                server=pt["server_name"])
+        info["path"] = self.path
+        info["portal"] = pt["id"]
+        return info, pt
+
+    def test_portal_check_passes_for_matching_entry(self):
+        info, pt = self._portal_info()
+        install.write_config(self.path, tuple(info["section"]),
+                             pt["server_name"], info["entry"])
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client(
+                "omp", info, "uvx", server=pt["server_name"]), 0)
+
+    def test_portal_check_fails_when_entry_is_bound_to_other_portal(self):
+        info, pt = self._portal_info()
+        other = dict(info["entry"])
+        other["env"] = dict(other.get("env", {}), AGG_SEARCH_PORTAL="omp.code")
+        install.write_config(self.path, tuple(info["section"]),
+                             pt["server_name"], other)
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client(
+                "omp", info, "uvx", server=pt["server_name"]), 1)
+
+    def test_portal_check_fails_when_entry_has_no_portal_binding(self):
+        info, pt = self._portal_info()
+        bare = {k: v for k, v in info["entry"].items() if k != "env"}
+        install.write_config(self.path, tuple(info["section"]),
+                             pt["server_name"], bare)
+        with mock.patch.object(install.shutil, "which", return_value="/bin/uvx"):
+            self.assertEqual(install.check_client(
+                "omp", info, "uvx", server=pt["server_name"]), 1)
+
     def test_list_form_command_passes(self):
         # OpenCode stores the whole argv in `command`, not a string.
         info = {"mode": "json", "path": self.path,
