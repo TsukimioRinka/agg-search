@@ -43,6 +43,30 @@ eTLD+1 interleave layer (also on by default in the CLI).
 per-engine weight overrides for this harness; the CLI path keeps the `ENGINES`
 defaults with `diversify=True`.
 
+## Domain A/B (record once, grade once, compare free)
+
+For a profile or portal change, use graded judgments and replay the real
+fusion path (`rrf_fuse` with the profile's weights, authority prior, dedupe,
+diversify, then `_blend_order` over stored rerank scores):
+
+```sh
+agg-search-eval record  --queries q.json --out fx.json --engines brave_news,serper_news,tavily --recency day
+agg-search-eval judge   --fixture fx.json --out grades.json --rubric news          # local qwen 0/1/2, free, resumable
+agg-search-eval judge   --fixture fx.json --out jina.json --judge jina             # optional: rerank scores (Jina tokens)
+agg-search-eval compare --fixture fx.json --judgments grades.json --profile news \
+    --rerank-scores jina.json --variant current --variant "B:engines=+brave,-brave_news;blend=none"
+```
+
+`tools/eval-offline.sh QUERIES PROFILE RUBRIC [VARIANT ...]` chains the three
+steps in `/tmp/agg-lab-eval` and reuses the fixture and grades on later runs.
+`record` skips engines that are cooling (calling engine functions directly
+bypasses the CLI cooldown, which once made a quota-exhausted engine look broken
+in every query); `--ignore-cooldown` overrides. Variant keys: `engines`
+(`+e`/`-e` or a full list), `w.<engine>`, `blend` (`none` or a float),
+`boost`, `dedupe`, `diversify`. The first variant is the baseline for the
+wins/losses column. Use the qwen grades as the primary metric: Jina is also the
+reranker, so scoring reranked lists with Jina favours whatever Jina prefers.
+
 ## Calibration result (2026-10-18)
 
 Swept `k ∈ {0,10,30,60,100}` × 5 weight variants over 10 pooled judgment
