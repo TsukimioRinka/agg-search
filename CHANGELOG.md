@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.3] - 2026-11-20
+
+CLI and packaging hygiene.
+
+### Added
+
+- `--version` on every console entry point (`agg-search`, `crawl-fetch`,
+  `agg-search-mcp`, `agg-search-http`, `agg-search-install`,
+  `agg-search-tune`, `agg-search-eval`), covered by `tests/test_version_flag.py`.
+
+### Changed
+
+- `pyproject.toml` uses the SPDX `license = "MIT"` expression with
+  `license-files` (build requires `setuptools>=77`); the deprecated table
+  form and License classifier are gone, so `uv build` is warning-free.
+- GitHub Actions pins moved to Node 24 releases: checkout v7.0.1,
+  setup-python v7.1.0, upload-artifact v7.0.2, download-artifact v8.0.2.
+
 ## [0.5.2] - 2026-11-20
 
 Add dedicated `omp` (oh-my-pi) portal descriptors and installer target.

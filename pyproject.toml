@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agg-search"
-version = "0.5.2"
+version = "0.5.3"
 description = "Multi-engine web search with RRF fusion, Jina reranking, query expansion and a tiered fetcher — CLI + MCP server, stdlib only."
 readme = "README.md"
 license = "MIT"
