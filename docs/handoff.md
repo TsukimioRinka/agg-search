@@ -106,7 +106,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - SSRF 守卫只校验「送出去的 URL」与「容器最终 URL」；DNS 解析两次，具备 DNS 控制权的对手仍可 rebinding。
 - DeepSeek Fetch 的出口在服务端，守卫管不到它实际取哪。
 - `news` 窗口实测（6 条问句）确认 `day` 保持 6/6 非空且不漏入 2023–2025 旧闻，但未做人工金标；academic/code 的 18 条权威源@3 评测基于域名规则与人工抽检，10 条通用回归 `nDCG@10` 基于模型池化标注（见 `docs/benchmarks.md`）。
-- 仅基于检索（retrieval-only）时 `academic` 在 `openalex` 首次请求遭遇 429 限速的当次仍会报错并写入 10min 冷却；随后同门户下次请求会自动进入 `searxng` 免 key 回退。
+- `academic` 门户在 `openalex` 首次遭遇 429 的**当次**就会补召 `searxng`（0.5.1 运行时补召，`degraded` 记 `required engine(s) openalex unavailable; supplemented searxng`），同时写入冷却；补召结果不写缓存。由 `tests/test_portals.py::test_academic_first_429_supplements_in_the_same_call` 锁定。真实 429 未能人为复现，只有离线证据。
 - `--expand` 默认保持 `0`（实测本地 `qwen3.5:9b` 在 `expand=3` 会幻觉实体/年份且多倍消耗引擎额度）；`--answer-fetch` 默认保持 `0`（容器抓反爬页延迟最高 +26.7s）。
 - 反馈回路只在经由本工具 `fetch` 读到页面时记 `used`；纯 CLI 用户乘数停在 1.0。
 - GUI 客户端（Cursor/VS Code/Cline/Windsurf/Zed/Continue/Claude Desktop）未实测，只有配置与深链；CLI 实测记录见 `docs/agent-tests.md`。
@@ -173,6 +173,6 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 0.5.0 已完成：`portals.json` / `docs/portals.md` / `agg-search-install --portal`、按门户隔离工具子集/顺序与领域 prompt、缺失依赖降级与 `engine_health.degraded`、5 项增强机制对照评测（合入内容去重、权威域先验、`code blend=0.4`、opt-in `--answer-fetch`；拒绝默认 `--expand`）及 6 CLI 客户端隔离端到端验证。
 
 后续若继续演进，可考虑：
-1. 首次搜索即命中 `openalex` 429 时当场切到 `keyless_fallback`（当前是在下一次进入 cooldown 后自动切）。
+1. ~~首次 429 当场切到 `keyless_fallback`~~：0.5.1 已实现，0.6.0 补了回归测试。
 2. 在更大规模人工标注集上评估通用 `rerank_blend` 与中文同源去重规则。
 3. 对 GUI 客户端在独立沙箱内补真实点击深链测试。
