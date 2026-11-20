@@ -138,7 +138,10 @@ def sweep(a):
 
 
 def main():
+    from agg_search import __version__
     ap = argparse.ArgumentParser(description="RRF record/sweep harness")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("record")
     r.add_argument("--queries", required=True)

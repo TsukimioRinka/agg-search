@@ -742,7 +742,10 @@ def _run_and_send(request: dict) -> None:
 
 
 def main(argv=None) -> None:
+    from agg_search import __version__
     ap = argparse.ArgumentParser(description="Stdio MCP server for agg-search.")
+    ap.add_argument("--version", action="version",
+                    version=f"%(prog)s {__version__}")
     ap.add_argument("--portal", default=None, metavar="AGENT.DOMAIN",
                     help="bind this server instance to a portal "
                          "(sets AGG_SEARCH_PORTAL)")
