@@ -14,7 +14,7 @@
 | `SEARXNG_URL` | 本地 SearXNG，默认 `http://127.0.0.1:8080` | 否 |
 | `OPENALEX_API_KEY` | OpenAlex 学术检索的 key（免 key 也能用，额度按 IP 共享） | 否 |
 | `OPENALEX_MAILTO` | OpenAlex polite pool 邮箱（更高优先级/额度） | 否 |
-| `STACKEXCHANGE_SITE` | Stack Exchange 站点，默认 `stackoverflow`（可换 `serverfault`、`askubuntu` 等） | 否 |
+| `STACKEXCHANGE_SITE` | Stack Exchange 站点，默认 `stackoverflow`（可换 `serverfault`、`askubuntu` 等）；也可写逗号列表（最多 4 个，如 `stackoverflow,unix,serverfault`），并行查询后按名次交错。每多一个站点就多一次请求，免 key 配额是每 IP 每天 300 次 | 否 |
 | `STACKEXCHANGE_KEY` | Stack Exchange key（免 key 每日 300 次/IP） | 否 |
 | `JINA_API_KEY` | Jina Reranker v3.5 精排（listwise；链式回退 v3 → v2）；缺失即降级 RRF | 否 |
 | `JINA_RERANK_MODEL` | 覆盖精排模型（默认 `jina-reranker-v3.5`；408/429/5xx 自动重试一次） | 否 |
