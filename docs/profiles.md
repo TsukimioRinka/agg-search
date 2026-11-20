@@ -19,17 +19,22 @@ agg-search "openai board" --profile news --top-n 5
 | `general` | 全部已配置引擎 | 无 | 与裸命令一致 |
 | `academic` | `openalex, exa, deepseek, brave, tavily` | openalex 1.8 / exa 1.3 / deepseek 1.1 | 摘要 500 字，top-n 15 |
 | `code` | `stack, brave, serper, deepseek, exa` | stack 1.8 / brave 1.2 / serper 1.1 | 摘要 600 字 |
-| `news` | `brave, serper, tavily, firecrawl` | brave 1.3 / serper 1.2 / tavily 1.1 | `recency=day`，摘要 300 字 |
+| `news` | `brave_news, serper_news, tavily, firecrawl` | brave_news 1.3 / serper_news 1.2 / tavily 1.1 | `recency=day`，`rerank_blend=0.3`，摘要 300 字（带发布日期前缀） |
 
 优先级：**显式 flag > `AGG_SEARCH_*` 环境变量 > profile > 内置默认**。所以 `--profile academic --engines openalex` 只跑一个引擎，`--profile news --recency week` 会覆盖 1 天窗口。
 
-三个新引擎都**不需要 key**：
+以下引擎**不需要 key**：
 
 | 引擎 | 数据源 | 可选环境变量 |
 |---|---|---|
 | `openalex` | OpenAlex 学术作品（含摘要重建、DOI 链接） | `OPENALEX_API_KEY`（更高日额度）、`OPENALEX_MAILTO`（polite pool） |
 | `hn` | Hacker News（Algolia API） | — |
 | `stack` | Stack Exchange 问答 | `STACKEXCHANGE_SITE`（默认 `stackoverflow`）、`STACKEXCHANGE_KEY` |
+| `arxiv` | arXiv 预印本（Atom API，只用拉丁字母关键词做 AND 检索） | —（不进默认引擎；作为 `academic` 门户的免 key 补召源） |
+
+新闻垂直引擎复用已有 key，请求数不变：`brave_news`（Brave News，`BRAVE_API_KEY`）、`serper_news`（Google News，`SERPER_API_KEY`）。摘要前缀是服务商给的发布日期，例如 `[2026-11-20]` 或 `[4 hours ago]`。
+
+门户的免 key 补召源：`academic` = `openalex, arxiv, searxng`；`code` = `stack, searxng, hn`；`news` = `hn, searxng`。评测数据见 `docs/benchmarks.md` 候选 G。
 
 ## 每个 agent 一套搜索逻辑
 

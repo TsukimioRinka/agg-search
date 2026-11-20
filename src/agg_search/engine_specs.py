@@ -55,6 +55,21 @@ ENGINE_SPECS = {
         "env": (), "weight": 1.0, "default": False,
         "keyless": True, "pack": "qa",
     },
+    # arXiv Atom API; used as an academic keyless fallback, not by default
+    # (no gain on the healthy path, and arXiv asks for <=1 request / 3s).
+    "arxiv": {
+        "env": (), "weight": 1.0, "default": False,
+        "keyless": True, "pack": "academic",
+    },
+    # news verticals of the same providers (same keys, same request count)
+    "brave_news": {
+        "env": ("BRAVE_API_KEY",), "weight": 1.0, "default": False,
+        "keyless": False, "pack": "news",
+    },
+    "serper_news": {
+        "env": ("SERPER_API_KEY",), "weight": 1.0, "default": False,
+        "keyless": False, "pack": "news",
+    },
 }
 
 

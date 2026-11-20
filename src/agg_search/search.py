@@ -47,6 +47,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from xml.etree import ElementTree
 
 try:  # package import (installed, `python -m agg_search.search`)
     from . import engine_specs, learn, portals, profiles
@@ -818,6 +819,112 @@ def eng_stack(q, n, recency):
     return out, None
 
 
+_ATOM = "{http://www.w3.org/2005/Atom}"
+_ARXIV_STOP = frozenset({"a", "an", "the", "and", "or", "for", "of", "to",
+                         "in", "on", "with", "by", "from", "at", "is", "are",
+                         "how", "what", "why", "not"})
+
+
+def arxiv_query(q):
+    """Latin-script terms ANDed over all fields; arXiv's free-text OR mode
+    matches tens of thousands of loosely related papers. CJK is dropped
+    (arXiv metadata is English); a CJK-only query yields ''."""
+    toks = [t for t in re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]*", q or "")
+            if t.lower() not in _ARXIV_STOP]
+    return " AND ".join("all:" + t for t in toks[:8])
+
+
+def eng_arxiv(q, n, recency):
+    """arXiv preprints via the Atom API (keyless)."""
+    sq = arxiv_query(q)
+    if not sq:
+        return [], None  # healthy empty: nothing arXiv can match
+    if recency:
+        days = {"day": 1, "week": 7, "month": 30, "year": 365}[recency]
+        now = datetime.datetime.now(datetime.timezone.utc)
+        since = now - datetime.timedelta(days=days)
+        sq += " AND submittedDate:[%s TO %s]" % (since.strftime("%Y%m%d%H%M"),
+                                                now.strftime("%Y%m%d%H%M"))
+    params = {"search_query": sq, "max_results": min(n, 25),
+              "sortBy": "relevance"}
+    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "agg-search/1.0"})
+    with _OPENER.open(req, timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
+        raw = r.read(MAX_RESPONSE + 1)
+    if len(raw) > MAX_RESPONSE:
+        raise ValueError("engine response larger than %d bytes" % MAX_RESPONSE)
+    return parse_arxiv_atom(raw, n), None
+
+
+def parse_arxiv_atom(raw, n):
+    # the feed never needs a DTD; refusing one rules out entity tricks
+    if b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw.upper():
+        raise ValueError("arxiv response carries a DTD")
+    root = ElementTree.fromstring(raw)
+    out = []
+    for entry in root.findall(_ATOM + "entry")[:n]:
+        link = (entry.findtext(_ATOM + "id") or "").strip()
+        m = re.search(r"arxiv\.org/abs/([^\s?#]+?)(?:v\d+)?$", link)
+        if not m:
+            continue
+        title = re.sub(r"\s+", " ", entry.findtext(_ATOM + "title") or "")
+        summary = re.sub(r"\s+", " ", entry.findtext(_ATOM + "summary") or "")
+        out.append(("https://arxiv.org/abs/" + m.group(1),
+                    clean_text(title.strip()),
+                    clean_text(summary.strip()[:400])))
+    return out
+
+
+def _dated(date, text):
+    """Prefix a news snippet with its publication date so rerankers and
+    agents can see freshness; the date comes from the provider."""
+    date = clean_text(str(date or "")).strip()
+    return ("[%s] %s" % (date, text) if date else text)[:400]
+
+
+def eng_brave_news(q, n, recency):
+    """Brave News vertical (same key and quota as `brave`)."""
+    key = getenv("BRAVE_API_KEY")
+    if not key:
+        return None, "no BRAVE_API_KEY"
+    params = {"q": q, "count": min(n, 20)}
+    if recency:
+        params["freshness"] = {"day": "pd", "week": "pw",
+                               "month": "pm", "year": "py"}[recency]
+    url = ("https://api.search.brave.com/res/v1/news/search?"
+           + urllib.parse.urlencode(params))
+    req = urllib.request.Request(url, headers={"X-Subscription-Token": key})
+    with _OPENER.open(req, timeout=_effective_timeout(ENGINE_TIMEOUT)) as r:
+        d = _read_json(r)
+    out = []
+    for x in d.get("results", [])[:n]:
+        if not x.get("url"):
+            continue
+        out.append((norm_url(x["url"]), x.get("title", ""),
+                    _dated((x.get("page_age") or "")[:10],
+                           x.get("description") or "")))
+    return out, None
+
+
+def eng_serper_news(q, n, recency):
+    """Google News via serper.dev (same key and credit cost as `serper`)."""
+    key = getenv("SERPER_API_KEY")
+    if not key:
+        return None, "no SERPER_API_KEY"
+    body = {"q": q, "num": min(n, 10)}
+    if recency:
+        body["tbs"] = {"day": "qdr:d", "week": "qdr:w",
+                       "month": "qdr:m", "year": "qdr:y"}[recency]
+    d = http_json("https://google.serper.dev/news", method="POST",
+                  body=body, headers={"X-API-KEY": key})
+    out = []
+    for x in d.get("news") or []:
+        if x.get("link"):
+            out.append((norm_url(x["link"]), x.get("title", ""),
+                        _dated(x.get("date"), x.get("snippet") or "")))
+    return out[:n], None
+
+
 _ENGINE_FNS = {
     "exa": lambda q, n, r: eng_exa(q, n),
     "brave": lambda q, n, r: eng_brave(q, n, r),
@@ -830,6 +937,9 @@ _ENGINE_FNS = {
     "openalex": lambda q, n, r: eng_openalex(q, n, r),
     "hn": lambda q, n, r: eng_hn(q, n, r),
     "stack": lambda q, n, r: eng_stack(q, n, r),
+    "arxiv": lambda q, n, r: eng_arxiv(q, n, r),
+    "brave_news": lambda q, n, r: eng_brave_news(q, n, r),
+    "serper_news": lambda q, n, r: eng_serper_news(q, n, r),
 }
 # name: (fn(q, n, recency), rrf weight) — weights come from engine_specs.
 ENGINES = {name: (_ENGINE_FNS[name], engine_specs.ENGINE_SPECS[name]["weight"])
