@@ -168,6 +168,14 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 本机回落：`uv tool` 升到 0.5.3；`omp.general/academic/code` 握手版本 0.5.3、工具数 2/3/2；元数据 exit 3，example.com 200；无痕 OMP 会话调用 `agg-search-academic` 的 `openalex` 返回真实 DOI 链接且 `engine_health.portal=omp.academic`。回滚备份 `~/.omp/agent/backups/mcp.json.*`（本轮未改 mcp.json）。
 - 下一轮优先：`news` 空结果自适应时间窗回退（需 A/B 门禁），其次 `agg-search-install --portal omp.* --check` 单测，再次 `crawl-fetch` 失败分类。
 
+## 7.2 第 7–9 轮记录（0.6.0）
+
+- 第 7 轮 `fix(install)`：`--portal X --check` 现在校验条目绑定的门户（`env.AGG_SEARCH_PORTAL` 或 `--portal` 参数），绑错或无绑定返回 1。真实 `~/.omp/agent/mcp.json` 只读实测：omp.general/academic/code 为 ok，omp.news 报未注册。
+- 第 8 轮 `feat(fetch)`：失败/拦截结果带 `error_class`（固定词表，见 `docs/fetching.md`），MCP `fetch` 的 `outputSchema` 声明同一枚举。实测曾把不可解析域名误判为 `ssrf_blocked`，已修为 `dns` 并加回归用例。
+- 第 9 轮评测：`news` day→week 空结果回退 **拒绝**（20 条冷门查询空结果 0/20，见 `docs/benchmarks.md` 候选 F）；同时补测试锁定 `academic` 首次 429 当次补召。评测中发现 `firecrawl` 额度耗尽（402/429），属账户问题，不是代码缺陷。
+- 本机回落：`uv tool` 0.5.3 → 0.6.0；三门户握手 0.6.0、工具 2/3/2；元数据 exit 3（带 `error_class: ssrf_blocked`）；example.com 200；无痕 OMP 会话 `omp.academic` + openalex 返回真实 DOI。`SKILL.md` 增加一行 `error_class` 重试建议。回滚备份：`~/.omp/agent/backups/mcp.json.20261120-215714`、`aggregate-search-skill-20261120-215714.tar.gz`；回滚命令 `uv tool install --force agg-search==0.5.3` 后解包恢复。
+- 下一轮优先：给 `firecrawl` 额度耗尽设更长冷却（402 应按「付费失效」而非普通错误处理，需先查 `classify_error` 现状）；其次 `tools/eval-offline.sh` 固化离线评测；再次 arxiv/crossref 免 key 引擎评测。
+
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 
 0.5.0 已完成：`portals.json` / `docs/portals.md` / `agg-search-install --portal`、按门户隔离工具子集/顺序与领域 prompt、缺失依赖降级与 `engine_health.degraded`、5 项增强机制对照评测（合入内容去重、权威域先验、`code blend=0.4`、opt-in `--answer-fetch`；拒绝默认 `--expand`）及 6 CLI 客户端隔离端到端验证。
