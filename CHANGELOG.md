@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.2] - 2026-11-20
+
+Add dedicated `omp` (oh-my-pi) portal descriptors and installer target.
+
+### Added
+
+- Dedicated `omp` agent and 4 `omp.*` portals (`omp.general`, `omp.academic`,
+  `omp.code`, `omp.news`) in `portals.AGENT_SPECS` and `install.CLIENTS`,
+  configured with `local_llm=True`, `answer_order=("local", "deepseek")`,
+  `default_expand=0`, and JSON config path `~/.omp/agent/mcp.json` (14 agents /
+  56 portals total).
+
+### Fixed
+
+- `install.portals_markdown` now derives the total portal count dynamically
+  from `len(portal_map)` instead of hardcoding `52`.
+
 ## [0.5.1] - 2026-11-20
 
 Hardening pass from the post-0.5.0 review: one engine registry, runtime

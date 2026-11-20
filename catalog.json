@@ -874,6 +874,99 @@
       ]
     },
     {
+      "id": "omp",
+      "mode": "json",
+      "doc": "",
+      "entries": [
+        {
+          "portal": "omp.academic",
+          "profile": "academic",
+          "name": "agg-search-academic",
+          "env": {
+            "AGG_SEARCH_PORTAL": "omp.academic",
+            "AGG_SEARCH_PROFILE": "academic"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PORTAL": "omp.academic",
+              "AGG_SEARCH_PROFILE": "academic"
+            }
+          },
+          "path": "~/.omp/agent/mcp.json"
+        },
+        {
+          "portal": "omp.code",
+          "profile": "code",
+          "name": "agg-search-code",
+          "env": {
+            "AGG_SEARCH_PORTAL": "omp.code",
+            "AGG_SEARCH_PROFILE": "code"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PORTAL": "omp.code",
+              "AGG_SEARCH_PROFILE": "code"
+            }
+          },
+          "path": "~/.omp/agent/mcp.json"
+        },
+        {
+          "portal": "omp.general",
+          "profile": "general",
+          "name": "agg-search",
+          "env": {
+            "AGG_SEARCH_PORTAL": "omp.general"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PORTAL": "omp.general"
+            }
+          },
+          "path": "~/.omp/agent/mcp.json"
+        },
+        {
+          "portal": "omp.news",
+          "profile": "news",
+          "name": "agg-search-news",
+          "env": {
+            "AGG_SEARCH_PORTAL": "omp.news",
+            "AGG_SEARCH_PROFILE": "news"
+          },
+          "entry": {
+            "command": "uvx",
+            "args": [
+              "--from",
+              "agg-search",
+              "agg-search-mcp"
+            ],
+            "env": {
+              "AGG_SEARCH_PORTAL": "omp.news",
+              "AGG_SEARCH_PROFILE": "news"
+            }
+          },
+          "path": "~/.omp/agent/mcp.json"
+        }
+      ]
+    },
+    {
       "id": "opencode",
       "mode": "json",
       "doc": "",

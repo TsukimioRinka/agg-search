@@ -128,6 +128,12 @@ CLIENTS = {
         "section": ("mcp", "servers"),
         "shape": "opencode",
     },
+    "omp": {
+        "mode": "json",
+        "path": _path(".omp", "agent", "mcp.json"),
+        "section": ("mcpServers",),
+        "shape": "mcpServers",
+    },
     "generic": {
         "mode": "snippet",
         "doc": "any client that reads mcpServers",
@@ -612,7 +618,7 @@ def portals_markdown(data=None):
 
     lines += [
         "",
-        "## 全量门户命令索引（52 个 `agent.domain`）",
+        "## 全量门户命令索引（%d 个 `agent.domain`）" % len(portal_map),
         "",
         "| Portal | Server 名 | 安装 / 写入命令 |",
         "|---|---|---|",

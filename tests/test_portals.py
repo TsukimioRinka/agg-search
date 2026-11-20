@@ -23,7 +23,22 @@ class PortalModelTest(unittest.TestCase):
         self.assertEqual(set(portals.DOMAIN_SPECS), set(profiles.PROFILES))
         ids = portals.portal_ids()
         self.assertEqual(len(ids), len(install.CLIENTS) * len(profiles.PROFILES))
-        self.assertEqual(len(ids), 52)
+        self.assertEqual(len(ids), 56)
+
+    def test_omp_portal_registered_and_differs_from_generic(self):
+        self.assertIn("omp", portals.agent_names())
+        self.assertIn("omp", install.CLIENTS)
+        for domain in portals.domain_names():
+            omp_p = portals.load("omp.%s" % domain)
+            gen_p = portals.load("generic.%s" % domain)
+            self.assertIs(omp_p["dependencies"]["llm"]["local_llm"], True)
+            self.assertEqual(omp_p["defaults"]["expand"], 0)
+            self.assertEqual(omp_p["defaults"]["answer_order"],
+                             ["local", "deepseek"])
+            self.assertEqual(gen_p["defaults"]["answer_order"],
+                             ["deepseek", "local"])
+            self.assertNotEqual(omp_p["defaults"]["answer_order"],
+                                gen_p["defaults"]["answer_order"])
 
     def test_required_fields_and_tool_isolation(self):
         acad = portals.load("codex.academic")

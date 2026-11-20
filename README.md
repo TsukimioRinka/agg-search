@@ -23,7 +23,7 @@ A multi-engine search stack for agents: parallel recall across eleven engines (t
 2. **抓取是阶梯而不是一个函数** —— DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
 3. **排序是两阶段** —— RRF 粗排前 15，再交给 Jina Reranker v3.5 listwise 精排；模型不可用链式回退 v3 → v2，全失败则保留 RRF 顺序，绝不阻塞。
 4. **韧性层是显式的** —— 5 分钟结果缓存 + 15 分钟页面缓存、按错误类型分级的冷却（额度 1h / 反爬 10min / 超时 90s）、引擎健康与延迟上报，缺 key 的引擎提前剔除不占线程。
-5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、13 家客户端的配置生成器。
+5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
 6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
 
 ## 架构
@@ -82,9 +82,9 @@ PYTHONPATH=src python3 -m agg_search.search "query"
 
 | 入口 | 说明 |
 |---|---|
-| [docs/catalog.md](docs/catalog.md) | 13 家 Agent × 4 个领域画像的完整入口表 |
+| [docs/catalog.md](docs/catalog.md) | 14 家 Agent × 4 个领域画像的完整入口表 |
 | [catalog.json](catalog.json) | 同一份数据的机器可读版本（给脚本/目录站用） |
-| [docs/portals.md](docs/portals.md) | 52 个 `agent × domain` 门户隔离规格（工具子集/顺序、prompt、依赖与降级） |
+| [docs/portals.md](docs/portals.md) | 56 个 `agent × domain` 门户隔离规格（工具子集/顺序、prompt、依赖与降级） |
 | [portals.json](portals.json) | 机器可读门户注册表（与 `catalog.json` 严格同步） |
 | Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PORTAL` / `AGG_SEARCH_PROFILE` |
 | Claude Code / Codex | 一条 `mcp add` 命令，含 `--env` |
@@ -154,7 +154,7 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 ### 一行接入
 
 ```bash
-agg-search-install --list                     # 支持 13 家客户端
+agg-search-install --list                     # 支持 14 家客户端
 agg-search-install -c claude-code             # 打印 claude mcp add 命令
 agg-search-install -c cursor --write          # 合并进 ~/.cursor/mcp.json（自动备份）
 agg-search-install -c vscode --scope project  # 写 .vscode/mcp.json
@@ -233,10 +233,10 @@ python3 -m unittest discover -s tests -v
 | 文档 | 内容 |
 |---|---|
 | [docs/install.md](docs/install.md) | 安装方式、环境变量全表、冒烟测试 |
-| [docs/adapters.md](docs/adapters.md) | 13 家客户端的接入配置 |
+| [docs/adapters.md](docs/adapters.md) | 14 家客户端的接入配置 |
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
 | [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
-| [docs/portals.md](docs/portals.md) | 52 个 `agent × domain` 门户规格、工具顺序与降级路径 |
+| [docs/portals.md](docs/portals.md) | 56 个 `agent × domain` 门户规格、工具顺序与降级路径 |
 | [docs/benchmarks.md](docs/benchmarks.md) | 5 项增强机制的对照评测（18 领域 + 10 通用查询）与取舍依据 |
 | [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的门户隔离实测与清理记录 |
 | [docs/handoff.md](docs/handoff.md) | 交接：本机路径、凭据位置、逐层验证与发版流程 |

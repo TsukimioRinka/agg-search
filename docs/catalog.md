@@ -22,6 +22,7 @@
 | cursor | json | [⬇ 安装](https://cursor.com/en/install-mcp?name=agg-search&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuZ2VuZXJhbCJ9fQ%3D%3D) |
 | gemini | json | `agg-search-install --portal gemini.general --write` |
 | generic | snippet | `agg-search-install --portal generic.general` |
+| omp | json | `agg-search-install --portal omp.general --write` |
 | opencode | json | `agg-search-install --portal opencode.general --write` |
 | vscode | json | [⬇ 安装](https://vscode.dev/redirect/mcp/install?name=agg-search&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.general%22%7D%7D) |
 | windsurf | json | `agg-search-install --portal windsurf.general --write` |

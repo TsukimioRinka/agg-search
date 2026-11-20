@@ -363,6 +363,12 @@ AGENT_SPECS = {
         "default_expand": 0,
         "notes": "Generic MCP client using standard mcpServers JSON",
     },
+    "omp": {
+        "local_llm": True,
+        "answer_order": ("local", "deepseek"),
+        "default_expand": 0,
+        "notes": "OMP (oh-my-pi) CLI agent; ~/.omp/agent/mcp.json, local ollama preferred",
+    },
     "opencode": {
         "local_llm": True,
         "answer_order": ("local", "deepseek"),

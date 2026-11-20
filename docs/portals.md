@@ -28,12 +28,13 @@
 | `cursor` | json | 否（云端优先） | `deepseek` → `local` | [⬇ 安装](https://cursor.com/en/install-mcp?name=agg-search-academic&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyItLWZyb20iLCAiYWdnLXNlYXJjaCIsICJhZ2ctc2VhcmNoLW1jcCJdLCAiZW52IjogeyJBR0dfU0VBUkNIX1BPUlRBTCI6ICJjdXJzb3IuYWNhZGVtaWMiLCAiQUdHX1NFQVJDSF9QUk9GSUxFIjogImFjYWRlbWljIn19) / `agg-search-install --portal cursor.academic --write` |
 | `gemini` | json | 否（云端优先） | `deepseek` → `local` | `agg-search-install --portal gemini.academic --write` |
 | `generic` | snippet | 否（云端优先） | `deepseek` → `local` | `agg-search-install --portal generic.academic` |
+| `omp` | json | 是 | `local` → `deepseek` | `agg-search-install --portal omp.academic --write` |
 | `opencode` | json | 是 | `local` → `deepseek` | `agg-search-install --portal opencode.academic --write` |
 | `vscode` | json | 否（云端优先） | `deepseek` → `local` | [⬇ 安装](https://vscode.dev/redirect/mcp/install?name=agg-search-academic&config=%7B%22type%22%3A%20%22stdio%22%2C%20%22command%22%3A%20%22uvx%22%2C%20%22args%22%3A%20%5B%22--from%22%2C%20%22agg-search%22%2C%20%22agg-search-mcp%22%5D%2C%20%22env%22%3A%20%7B%22AGG_SEARCH_PORTAL%22%3A%20%22vscode.academic%22%2C%20%22AGG_SEARCH_PROFILE%22%3A%20%22academic%22%7D%7D) / `agg-search-install --portal vscode.academic --write` |
 | `windsurf` | json | 否（云端优先） | `deepseek` → `local` | `agg-search-install --portal windsurf.academic --write` |
 | `zed` | json | 是 | `local` → `deepseek` | `agg-search-install --portal zed.academic --write` |
 
-## 全量门户命令索引（52 个 `agent.domain`）
+## 全量门户命令索引（56 个 `agent.domain`）
 
 | Portal | Server 名 | 安装 / 写入命令 |
 |---|---|---|
@@ -73,6 +74,10 @@
 | `generic.code` | `agg-search-code` | `agg-search-install --portal generic.code` |
 | `generic.general` | `agg-search` | `agg-search-install --portal generic.general` |
 | `generic.news` | `agg-search-news` | `agg-search-install --portal generic.news` |
+| `omp.academic` | `agg-search-academic` | `agg-search-install --portal omp.academic --write` |
+| `omp.code` | `agg-search-code` | `agg-search-install --portal omp.code --write` |
+| `omp.general` | `agg-search` | `agg-search-install --portal omp.general --write` |
+| `omp.news` | `agg-search-news` | `agg-search-install --portal omp.news --write` |
 | `opencode.academic` | `agg-search-academic` | `agg-search-install --portal opencode.academic --write` |
 | `opencode.code` | `agg-search-code` | `agg-search-install --portal opencode.code --write` |
 | `opencode.general` | `agg-search` | `agg-search-install --portal opencode.general --write` |
