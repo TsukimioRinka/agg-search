@@ -27,6 +27,7 @@ import concurrent.futures as cf
 import importlib.util
 import json
 import math
+import re
 import sys
 import time
 from pathlib import Path
@@ -52,13 +53,34 @@ WEIGHT_VARIANTS = {
 }
 
 
+def load_queries(path):
+    """A JSON list of queries, or {"queries": [...]}."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        data = data.get("queries", [])
+    if not isinstance(data, list) or not all(isinstance(q, str) for q in data):
+        raise SystemExit("queries file must be a JSON list of strings")
+    return data
+
+
 def record(a):
-    queries = json.loads(Path(a.queries).read_text(encoding="utf-8"))
+    queries = load_queries(a.queries)
     engines = [e for e in a.engines.split(",") if e in m.ENGINES]
+    skipped = {}
+    if not a.ignore_cooldown:
+        # calling engine functions directly bypasses the CLI's cooldown; an
+        # engine out of quota would otherwise be recorded as failing everywhere
+        now = time.time()
+        for e, until in m.load_cooldown().items():
+            if e in engines and until > now:
+                skipped[e] = "skipped: cooling"
+        engines = [e for e in engines if e not in skipped]
     out = {"created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-           "per_engine": a.per_engine, "engines": engines, "queries": {}}
+           "per_engine": a.per_engine, "engines": engines,
+           "recency": a.recency, "queries": {}}
     for q in queries:
-        results, status = m.recall(q, a.per_engine, engines, None)
+        results, status = m.recall(q, a.per_engine, engines, a.recency)
+        status.update(skipped)
         out["queries"][q] = {"engines": results, "status": status}
         print("recorded: %s | %s" % (q, "; ".join(
             "%s=%s" % kv for kv in status.items())), file=sys.stderr)
@@ -137,6 +159,208 @@ def sweep(a):
               % (a.top, base[0]["ndcg10"], base[0]["recall15"]))
 
 
+RUBRICS = {
+    "general": "Score 2 if the result directly answers or covers the query; "
+               "1 if related but only partially useful; 0 if off-topic or spam.",
+    "academic": "Score 2 if it is a research paper, preprint or survey directly "
+                "on this topic; 1 if related (tangential paper, tutorial, blog, "
+                "docs); 0 if off-topic.",
+    "code": "Score 2 if the page very likely answers the question directly; 1 if "
+            "related but only partially useful; 0 if off-topic. The question may "
+            "mix Chinese and English; an English page can fully answer a Chinese "
+            "question.",
+    "news": "Score 2 if it is a news report or update from the last few days "
+            "about the query topic; 1 if on-topic but evergreen, reference or old "
+            "(wiki, profile, price page, docs); 0 if off-topic or spam.",
+}
+_DATE_PREFIX = re.compile(r"^\[[^\]]{1,40}\]\s*")
+
+
+def fixture_pool(fx, q):
+    """canonical url -> (title, snippet) over every engine row of a query.
+    The news date prefix is stripped so graders judge content, not format."""
+    pool = {}
+    for rows in fx["queries"][q]["engines"].values():
+        for row in rows:
+            key = m.canonical_url(row[0])
+            pool.setdefault(key, (row[1] or "", _DATE_PREFIX.sub("", row[2] or "")))
+    return pool
+
+
+def _qwen_grade(query, title, snippet, rubric, model):
+    base = m.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+    prompt = ("You grade search results.\nQuery: %s\nResult title: %s\n"
+              "Result snippet: %s\n%s Reply with one digit only."
+              % (query, title[:200], snippet[:400], RUBRICS[rubric]))
+    d = m.http_json(base + "/api/generate", method="POST", timeout=120,
+                    body={"model": model, "prompt": prompt, "stream": False,
+                          "think": False,
+                          "options": {"temperature": 0, "num_predict": 4}})
+    hit = re.search(r"[012]", str(d.get("response", "")))
+    return int(hit.group(0)) if hit else 0
+
+
+def _jina_scores(query, pool):
+    keys = list(pool)
+    if not keys:
+        return {}
+    key = m.getenv("JINA_API_KEY")
+    if not key:
+        raise SystemExit("judge --judge jina needs JINA_API_KEY")
+    d = m.http_json("https://api.jina.ai/v1/rerank", method="POST",
+                    body={"model": m.getenv("JINA_RERANK_MODEL", m.JINA_MODELS[0]),
+                          "query": query,
+                          "documents": ["%s\n%s" % pool[k] for k in keys],
+                          "top_n": len(keys)},
+                    headers={"Authorization": "Bearer " + key})
+    return {keys[r["index"]]: float(r["relevance_score"]) for r in d["results"]}
+
+
+def judge(a):
+    """Grade every pooled result once; resumable (existing grades are kept)."""
+    fx = json.loads(Path(a.fixture).read_text(encoding="utf-8"))
+    out_path = Path(a.out)
+    labels = (json.loads(out_path.read_text(encoding="utf-8"))
+              if out_path.exists() else {})
+    for q in fx["queries"]:
+        pool = fixture_pool(fx, q)
+        have = labels.setdefault(q, {})
+        todo = {k: v for k, v in pool.items() if k not in have}
+        if not todo:
+            continue
+        if a.judge == "jina":
+            have.update(_jina_scores(q, todo))
+        else:
+            items = list(todo.items())
+            with cf.ThreadPoolExecutor(max_workers=a.workers) as ex:
+                grades = list(ex.map(lambda kv: _qwen_grade(
+                    q, kv[1][0], kv[1][1], a.rubric, a.model), items))
+            have.update({k: g for (k, _), g in zip(items, grades)})
+        out_path.write_text(json.dumps(labels, ensure_ascii=False),
+                            encoding="utf-8")  # checkpoint per query
+        print("judged %-40s %d new" % (q[:40], len(todo)), file=sys.stderr)
+    print("judgments -> %s" % out_path)
+
+
+def load_grades(path):
+    """{query: {canonical_url: grade}}; the legacy binary format
+    {query: [url, ...]} becomes grade 1 per listed url."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    out = {}
+    for q, v in data.items():
+        if isinstance(v, list):
+            out[q] = {m.canonical_url(u): 1.0 for u in v}
+        else:
+            # judge writes canonical keys already; hand-written files may not
+            out[q] = {m.canonical_url(k): float(g) for k, g in v.items()}
+    return out
+
+
+def graded_ndcg(final_urls, grades, top=10):
+    gains = [grades.get(m.canonical_url(u), 0.0) for u in final_urls[:top]]
+    ideal = sorted(grades.values(), reverse=True)[:top]
+    idcg = sum(g / math.log2(i + 2) for i, g in enumerate(ideal))
+    dcg = sum(g / math.log2(i + 2) for i, g in enumerate(gains))
+    return dcg / idcg if idcg else 0.0
+
+
+def parse_variant(text, profile):
+    """NAME[:key=val;key=val] over a profile. Keys: engines (+e/-e or a full
+    comma list), w.<engine>, blend (none|float), boost, dedupe, diversify."""
+    name, _, spec = text.partition(":")
+    cfg = {"name": name or "variant",
+           "engines": list(profile.get("engines") or m.ENGINES),
+           "weights": dict(profile.get("weights") or {}),
+           "blend": profile.get("rerank_blend"),
+           "boost": float(profile.get("authority_boost") or 1.0),
+           "domains": tuple(profile.get("authority_domains") or ()),
+           "dedupe": True, "diversify": True}
+    for item in filter(None, (x.strip() for x in spec.split(";"))):
+        key, _, val = item.partition("=")
+        if key == "engines":
+            for tok in filter(None, val.split(",")):
+                if tok[0] == "+" and tok[1:] not in cfg["engines"]:
+                    cfg["engines"].append(tok[1:])
+                elif tok[0] == "-":
+                    cfg["engines"] = [e for e in cfg["engines"] if e != tok[1:]]
+            if not any(t[:1] in "+-" for t in val.split(",") if t):
+                cfg["engines"] = [e for e in val.split(",") if e]
+        elif key.startswith("w."):
+            cfg["weights"][key[2:]] = float(val)
+        elif key == "blend":
+            cfg["blend"] = None if val in ("none", "") else float(val)
+        elif key == "boost":
+            cfg["boost"] = float(val)
+        elif key in ("dedupe", "diversify"):
+            cfg[key] = val.lower() in ("1", "true", "on", "yes")
+        else:
+            raise SystemExit("unknown variant key %r" % key)
+    return cfg
+
+
+def replay(fx, cfg, rerank_scores, top_n, rrf_top=15):
+    """Offline replay of fusion + (optional) rerank blend for one variant."""
+    weights = {name: entry[1] for name, entry in m.ENGINES.items()}
+    weights.update(cfg["weights"])
+    out = {}
+    for q, blob in fx["queries"].items():
+        results = {e: [tuple(r[:3]) for r in rows]
+                   for e, rows in blob["engines"].items()
+                   if e.split("#", 1)[0] in cfg["engines"] and rows}
+        if not results:
+            out[q] = []
+            continue
+        ranked = m.rrf_fuse(results, rrf_top, weights,
+                            diversify=cfg["diversify"], dedupe=cfg["dedupe"],
+                            domain_boost=cfg["domains"],
+                            boost_factor=cfg["boost"])
+        scores = (rerank_scores or {}).get(q)
+        if scores:
+            scored = [(i, scores.get(m.canonical_url(u), 0.0))
+                      for i, (u, _, _) in enumerate(ranked)]
+            if cfg["blend"] is None:
+                order = [i for i, _ in sorted(scored, key=lambda p: p[1],
+                                              reverse=True)]
+            else:
+                order = m._blend_order(scored, len(ranked), cfg["blend"])
+            ranked = [ranked[i] for i in order]
+        out[q] = [u for u, _, _ in ranked[:top_n]]
+    return out
+
+
+def compare(a):
+    from agg_search import profiles
+    fx = json.loads(Path(a.fixture).read_text(encoding="utf-8"))
+    grades = load_grades(a.judgments)
+    rerank = load_grades(a.rerank_scores) if a.rerank_scores else None
+    profile = profiles.load(a.profile)
+    top_n = a.top_n or int(profile.get("top_n") or 10)
+    variants = [parse_variant(v, profile) for v in (a.variant or ["current"])]
+    hi = max((g for d in grades.values() for g in d.values()), default=1.0)
+    base = None
+    print("# compare: profile=%s, %d queries, rerank=%s, top_n=%d"
+          % (a.profile, len(fx["queries"]),
+             "replayed scores" if rerank else "off (RRF order)", top_n))
+    print("\n| variant | nDCG@10 | best-grade@5 | domains@10 | wins/losses vs first |")
+    print("|---|---|---|---|---|")
+    for cfg in variants:
+        finals = replay(fx, cfg, rerank, top_n)
+        per = {q: graded_ndcg(f, grades.get(q, {})) for q, f in finals.items()}
+        best5 = sum(sum(grades.get(q, {}).get(m.canonical_url(u), 0.0) >= hi
+                        for u in f[:5]) for q, f in finals.items())
+        doms = sum(len({m.domain_of(u) for u in f[:10]})
+                   for f in finals.values()) / max(1, len(finals))
+        if base is None:
+            base, wl = per, "-"
+        else:
+            wins = sum(per[q] > base[q] + 1e-9 for q in per)
+            losses = sum(per[q] < base[q] - 1e-9 for q in per)
+            wl = "%d/%d" % (wins, losses)
+        print("| %s | %.3f | %d/%d | %.1f | %s |"
+              % (cfg["name"], sum(per.values()) / max(1, len(per)), best5,
+                 5 * len(finals), doms, wl))
+
+
 def main():
     from agg_search import __version__
     ap = argparse.ArgumentParser(description="RRF record/sweep harness")
@@ -149,6 +373,29 @@ def main():
     r.add_argument("--engines",
                    default="exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng")
     r.add_argument("--per-engine", type=int, default=5)
+    r.add_argument("--recency", choices=["day", "week", "month", "year"],
+                   default=None)
+    r.add_argument("--ignore-cooldown", action="store_true",
+                   help="also call engines that are cooling (spends quota)")
+    j = sub.add_parser("judge", help="grade the pooled results once")
+    j.add_argument("--fixture", required=True)
+    j.add_argument("--out", required=True)
+    j.add_argument("--judge", choices=["qwen", "jina"], default="qwen",
+                   help="qwen: local Ollama 0/1/2 grades (free); jina: "
+                        "relevance scores (also usable as --rerank-scores)")
+    j.add_argument("--rubric", choices=sorted(RUBRICS), default="general")
+    j.add_argument("--model", default="qwen3.5:9b")
+    j.add_argument("--workers", type=int, default=2)
+    c = sub.add_parser("compare", help="replay profile variants offline")
+    c.add_argument("--fixture", required=True)
+    c.add_argument("--judgments", required=True)
+    c.add_argument("--profile", default="general")
+    c.add_argument("--rerank-scores", default=None,
+                   help="jina judgments file; replays the rerank blend")
+    c.add_argument("--variant", action="append",
+                   help="NAME[:engines=+arxiv;w.arxiv=1.3;blend=0.3;boost=1.2;"
+                        "dedupe=0;diversify=0] (repeatable; first is baseline)")
+    c.add_argument("--top-n", type=int, default=None)
     s = sub.add_parser("sweep")
     s.add_argument("--fixture", required=True)
     s.add_argument("--judgments", required=True)
@@ -158,10 +405,8 @@ def main():
     s.add_argument("--diversify", action="store_true",
                    help="eTLD+1 interleave before top-15 cut (measures the layer)")
     a = ap.parse_args()
-    if a.cmd == "record":
-        record(a)
-    else:
-        sweep(a)
+    {"record": record, "judge": judge, "compare": compare,
+     "sweep": sweep}[a.cmd](a)
 
 
 if __name__ == "__main__":
