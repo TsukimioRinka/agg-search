@@ -8,9 +8,9 @@
 |---|---|
 | 本机工作仓库 | `~/projects/agg-search`（git，分支 `main`；2026-11-19 从 `/tmp/agg-search-pub` 迁来，旧路径已不存在） |
 | GitHub 仓库 | https://github.com/TsukimioRinka/agg-search |
-| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v0.9.0`） |
+| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v0.10.0`） |
 | CI | https://github.com/TsukimioRinka/agg-search/actions（tests 3.10–3.13 + ruff，publish 已钉 SHA） |
-| PyPI | https://pypi.org/project/agg-search/（最新 `0.9.0`） |
+| PyPI | https://pypi.org/project/agg-search/（最新 `0.10.0`） |
 | MCP Registry 条目 | `https://registry.modelcontextprotocol.io/v0/servers/io.github.TsukimioRinka%2Fagg-search/versions` |
 | 下载门类（人读/机读） | 仓库 `docs/catalog.md` 与 `catalog.json` |
 | 门户隔离（人读/机读） | 仓库 `docs/portals.md` 与 `portals.json`（56 个 `agent × domain`） |
@@ -30,8 +30,8 @@
 
 ## 2. 当前状态（2026-11-20）
 
-- 版本 `0.9.0`，281 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
-- PyPI `0.9.0`；MCP Registry `0.9.0 active`（0.8.0 及更早已 deprecated）；GitHub `v0.9.0`。
+- 版本 `0.10.0`，289 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
+- PyPI `0.10.0`；MCP Registry `0.10.0 active`（0.9.0 及更早已 deprecated）；GitHub `v0.10.0`。
 - 能力面：CLI + stdio MCP（2025-06-18）+ streamable HTTP、4 个领域画像、4 个免 key 引擎（openalex/hn/stack/arxiv）、2 个新闻垂直引擎（brave_news/serper_news，复用原 key，opt-in，不在 news 默认里）、56 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
 - 安全面（延续 0.4.1 审计）：元数据无条件拦截、3xx 拒绝、容器内最终 URL 复检、`allow_private`/`allow_cidrs` 只允许服务端环境变量、引擎响应 4 MiB 上限、Markdown 转义与控制字符剥离、HTTP 拒绝重复 Content-Length/CL+TE 且有 30s 超时与 64 连接上限、MCP 在飞调用上限 16；非门户工具调用（如 `code` 门户调 `answer`）返回 JSON-RPC `-32602`。
 
@@ -40,7 +40,7 @@
 ```bash
 cd ~/projects/agg-search
 uv venv .venv && VIRTUAL_ENV=$PWD/.venv uv pip install -e .
-.venv/bin/python -m unittest discover -s tests -v     # 期望 281 OK
+.venv/bin/python -m unittest discover -s tests -v     # 期望 289 OK
 ruff check --select F,E9,I001 src tests                # 期望无输出
 ```
 
@@ -115,7 +115,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 ## 6. 给下一个检查者的最小清单
 
 - [ ] `git -C ~/projects/agg-search status` 干净，HEAD 与 `git ls-remote origin main` 一致。
-- [ ] 281 测试 + ruff 通过（第 3 节命令）。
+- [ ] 289 测试 + ruff 通过（第 3 节命令）。
 - [ ] `portals.json` / `docs/portals.md` / `catalog.json` / `docs/catalog.md` 四者同步（`test_portals.py` 已校验）。
 - [ ] `crawl-fetch https://example.com` 返回 200（验证 agent-env 的 CIDR 行生效）。
 - [ ] 元数据 URL 被 blocked；MCP 参数 `allow_private:true` 不生效。
@@ -201,6 +201,13 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 第 16 轮 SearXNG 上游（经用户同意）：启用 `360search` 后上游全在封禁期、验证 0/6，按止损标准回滚，配置与改前逐字节一致（候选 K）。**SearXNG 当前仍被上游限流**，是改前就有的外部状态。
 - 本机回落 0.8.0 → 0.9.0；三门户握手 0.9.0、工具 2/3/2；元数据 exit 3；example.com 200；`--check` 三门户 ok；无痕 OMP 会话 `omp.academic` 返回真实 DOI。`SKILL.md` 改正了 0.7.0 时写的新闻说明（改为 opt-in 写法）。回滚备份 `~/.omp/agent/backups/mcp.json.20261120-235757`、`aggregate-search-skill-20261120-235757.tar.gz`；回滚命令 `uv tool install --force agg-search==0.8.0` 后解包恢复。
 - 下一轮优先：(1) 隔天、无评测流量时重测 SearXNG `360search`（先用 `engines=` 参数，不改配置）；(2) 新闻 opt-in 并用方案若想进默认，需要成本可接受的证据（例如只在 web 结果新鲜度不足时才追加垂直端点）；(3) 评测流量本身会触发上游限流，以后录制时控制频率。
+
+## 7.6 第 17–19 轮记录（0.10.0）
+
+- 第 17 轮 `feat(mcp)`：MCP prompts，每个门户一个研究流程提示，只列该门户启用的工具，跨门户取不到。stdio 与 HTTP 都已实测。
+- 第 18 轮（拒绝，未写代码）：新闻按需追加垂直端点。日期字段分不出「报道」和「近期更新过的百科/帮助页」，没有可靠触发信号（候选 L）。
+- 第 19 轮 SearXNG `360search` 复测：重启前单独可用，重启后（无论配置）都失效；配置已回滚并与原文件逐字节一致（候选 K 复测）。SearXNG 的所有默认上游仍被封禁，根因是出口代理 IP 被限流，不是 agg-search 的问题。**不要再尝试换上游**；可行的办法是换出口 IP 或等封禁过期。
+- 下一轮优先：(1) 隔天确认 SearXNG 是否自然恢复（只读 `curl`）；(2) 用 `eval-offline.sh` 录制问句型新闻查询（第三种类型）补全候选 J 的覆盖；(3) 在支持 MCP prompts 的 CLI 客户端（隔离 HOME）里实测斜杠命令展示。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 

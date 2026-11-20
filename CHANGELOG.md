@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.10.0] - 2026-11-21
+
+MCP prompts.
+
+### Added
+
+- MCP `prompts` capability (`prompts/list`, `prompts/get`): one research
+  workflow per portal (`web-research`, `academic-research`, `code-research`,
+  `news-research`) with a required `topic` argument (control characters
+  stripped, max 500 characters). The prompt lists only the tools the portal
+  enables and comes from static portal data; asking for another portal's
+  prompt returns `-32602`. Clients that support MCP prompts show it as a
+  slash command.
+
+### Evaluated, not changed
+
+- News "add verticals only when web results are stale": no reliable trigger,
+  because evergreen pages carry same-day `page_age` too (candidate L).
+- Local SearXNG `360search` retest: stops returning results after every
+  restart regardless of config; settings left unchanged (candidate K).
+
 ## [0.9.0] - 2026-11-20
 
 Correct the 0.7.0 news default after a wider evaluation; Stack Exchange
