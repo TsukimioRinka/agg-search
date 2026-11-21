@@ -108,6 +108,6 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {"listChanged": false}}, "serverInfo": {"name": "agg-search", "version": "0.2.0"}, "instructions": "…"}}
 ```
 
-客户端请求哪个受支持的协议版本，服务端就回哪个（`2025-06-18` / `2025-03-26` / `2024-11-05`）；不认识的版本回 `2025-06-18`。`version` 随安装版本变化。
+`initialize` 时客户端请求哪个受支持的旧版协议，服务端就回哪个（`2025-11-25` / `2025-06-18` / `2025-03-26` / `2024-11-05`）；不认识的版本回 `2025-11-25`。`2026-07-28` 客户端不握手，直接在每个请求的 `_meta` 里带版本（可先调 `server/discover`）。`version` 随安装版本变化。
 
 看到带 `serverInfo` 的 JSON 就说明进程能起、协议能应答；`version` 会随安装版本变化。再验一次工具列表就把 `method` 换成 `tools/list`（`id` 用 2）。若只看到 uv 的下载日志、没有 JSON 响应，通常是 `uvx` 不在 `PATH`（GUI 客户端场景）——换成 `which uvx` 得到的绝对路径。

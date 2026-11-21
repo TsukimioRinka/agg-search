@@ -1,4 +1,4 @@
-# HTTP transport (streamable HTTP, MCP 2025-06-18)
+# HTTP transport (streamable HTTP, MCP 2026-07-28 + legacy)
 
 同一个 MCP server 也可以跑成常驻 HTTP 端点：多个客户端共用一个进程，搜索缓存、
 引擎冷却、密钥只在一处生效。协议按 MCP **streamable HTTP** 实现，响应是最普通的
@@ -53,6 +53,20 @@ VS Code 的 `.vscode/mcp.json` 用 `servers` 键，`type` 写 `http`，其余相
 - `GET`：不带 `Accept: text/event-stream` → `405`；带则开一个立即关闭的 SSE 流。
 - `DELETE` → `405`。
 - 请求体上限 1 MiB（超过 `413`）；非 JSON `Content-Type` → `415`。
+
+以上是旧版（`initialize` 握手）的行为。`2026-07-28` 请求按无状态规则处理：
+
+- 识别方式：请求体 `params._meta` 里带 `io.modelcontextprotocol/protocolVersion`。
+- 必须镜像请求头：`MCP-Protocol-Version`（等于 `_meta` 里的版本）、`Mcp-Method`
+  （等于 `method`），`tools/call`/`prompts/get` 还要 `Mcp-Name`（等于 `params.name`，
+  支持 `=?base64?…?=` 编码）。缺失、不一致或含非法字符 → `400` + `-32020`。
+- 不支持的版本 → `400` + `-32022`（`data.supported` 列出支持的版本）；缺
+  `_meta` 必填字段 → `400` + `-32602`；未知方法 → `404` + `-32601`。
+- 不发、不校验 `Mcp-Session-Id`（带了也忽略）；一个 POST 只能是一条消息，含现代
+  请求的批量数组 → `400`；只有现代版本请求头却没有 `_meta` → `400` + `-32602`。
+- 结果带 `resultType: "complete"` 和 `_meta["io.modelcontextprotocol/serverInfo"]`；
+  `server/discover`、`tools/list`、`prompts/list` 另带 `ttlMs`（1 小时）和
+  `cacheScope: "public"`。
 
 ## 安全模型
 

@@ -66,3 +66,18 @@ agg-search-install --portal gemini.news --write
 
 rm -rf $LAB
 ```
+
+## MCP 2026-07-28 双时代实测（2026-11-21，1.1.0）
+
+客户端：官方 MCP Inspector CLI **2.13.0**，装在隔离目录 `/tmp/agg-lab-r24`（独立 `HOME`/`XDG_*`/`npm_config_cache`，`npm install --prefix`，未用 `-g`），测完删除。服务端为仓库开发版。Inspector 的 `--protocol-era` 有三档：`legacy`（只走 `initialize`）、`auto`（先发 `server/discover` 探测，失败才退回 `initialize`）、`modern`（固定 `2026-07-28`，不退回）。
+
+| 传输 | 门户 | 时代 | 协商结果 | `tools/list` | `prompts/get` | 错误路径 |
+|---|---|---|---|---|---|---|
+| stdio | `omp.academic` | legacy | `2025-11-25` | search, fetch, answer | `academic-research` 正常 | `top_n: 0` → `isError: true`（退出码 5） |
+| stdio | `omp.academic` | auto | `2026-07-28` | 同上 | 正常，结果带 `_meta` | 同上 |
+| stdio | `omp.academic` | modern | `2026-07-28` | 同上 | 正常，结果带 `_meta` | 同上 |
+| HTTP | `omp.code` | legacy | `2025-11-25` | search, fetch | `code-research` 正常 | 调 `answer` → 找不到该工具 |
+| HTTP | `omp.code` | auto | `2026-07-28` | search, fetch | 正常 | 同上 |
+| HTTP | `omp.code` | modern | `2026-07-28` | search, fetch | 正常 | 同上 |
+
+三档都能连上，门户隔离在两种时代下一致（`code` 门户在新协议下同样看不到 `answer`）。HTTP 实测时发现 Inspector 断开 keep-alive 连接会让服务端打印一段 `ConnectionResetError` 栈追踪，这是 1.0 就有的日志噪音，1.1.0 改为一行日志。

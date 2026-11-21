@@ -23,7 +23,7 @@ triggers:
 ## 核心工作流 (Workflow)
 
 ### 1. 搜索召回 (Recall)
-客户端已接入 MCP 时优先用工具 `search` / `fetch`（stdio 或 HTTP，协议 2025-06-18，参数与下表一一对应）；没有 MCP 时用 CLI：
+客户端已接入 MCP 时优先用工具 `search` / `fetch`（stdio 或 HTTP，协议 2026-07-28 与 2025-11-25 及更早版本，参数与下表一一对应）；没有 MCP 时用 CLI：
 
 ```bash
 agg-search "<query>" [--top-n 10] [--recency day|week|month|year] [--profile general|academic|code|news] [--no-jina] [--expand N] [--answer [deepseek]] [--json] [--fast] [--budget-secs 30] [--engine-timeout 25] [--include-domains arxiv.org,.edu] [--exclude-domains reddit.com] [--snippet-chars 400] [--no-cache] [--no-cooldown] [--no-diversify] [--engines exa,brave,serper,deepseek,firecrawl,anysearch,tavily,searxng,openalex,hn,stack,arxiv,brave_news,serper_news]

@@ -8,9 +8,9 @@
 |---|---|
 | 本机工作仓库 | `~/projects/agg-search`（git，分支 `main`；2026-11-19 从 `/tmp/agg-search-pub` 迁来，旧路径已不存在） |
 | GitHub 仓库 | https://github.com/TsukimioRinka/agg-search |
-| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v1.0.0`） |
+| Releases | https://github.com/TsukimioRinka/agg-search/releases（最新 `v1.1.0`） |
 | CI | https://github.com/TsukimioRinka/agg-search/actions（tests 3.10–3.13 + ruff，publish 已钉 SHA） |
-| PyPI | https://pypi.org/project/agg-search/（最新 `1.0.0`） |
+| PyPI | https://pypi.org/project/agg-search/（最新 `1.1.0`） |
 | MCP Registry 条目 | `https://registry.modelcontextprotocol.io/v0/servers/io.github.TsukimioRinka%2Fagg-search/versions` |
 | 下载门类（人读/机读） | 仓库 `docs/catalog.md` 与 `catalog.json` |
 | 门户隔离（人读/机读） | 仓库 `docs/portals.md` 与 `portals.json`（56 个 `agent × domain`） |
@@ -30,9 +30,9 @@
 
 ## 2. 当前状态（2026-11-20）
 
-- 版本 `1.0.0`（首个稳定版，SemVer 承诺见 `docs/stability.md`），302 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
-- PyPI `1.0.0`；MCP Registry `1.0.0 active`（0.10.0 及更早已 deprecated）；GitHub `v1.0.0`。
-- 能力面：CLI + stdio MCP（2025-06-18）+ streamable HTTP、4 个领域画像、4 个免 key 引擎（openalex/hn/stack/arxiv）、2 个新闻垂直引擎（brave_news/serper_news，复用原 key，opt-in，不在 news 默认里）、56 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
+- 版本 `1.1.0`（SemVer 承诺见 `docs/stability.md`），326 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
+- PyPI `1.1.0`；MCP Registry `1.1.0 active`（1.0.0 及更早已 deprecated）；GitHub `v1.1.0`。
+- 能力面：CLI + 双时代 MCP（无状态 2026-07-28 + 握手 2025-11-25 及更早）+ stdio/streamable HTTP、4 个领域画像、4 个免 key 引擎（openalex/hn/stack/arxiv）、2 个新闻垂直引擎（brave_news/serper_news，复用原 key，opt-in，不在 news 默认里）、56 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
 - 安全面（延续 0.4.1 审计）：元数据无条件拦截、3xx 拒绝、容器内最终 URL 复检、`allow_private`/`allow_cidrs` 只允许服务端环境变量、引擎响应 4 MiB 上限、Markdown 转义与控制字符剥离、HTTP 拒绝重复 Content-Length/CL+TE 且有 30s 超时与 64 连接上限、MCP 在飞调用上限 16；非门户工具调用（如 `code` 门户调 `answer`）返回 JSON-RPC `-32602`。
 
 ## 3. 逐层验证（按顺序，全部离线优先）
@@ -40,7 +40,7 @@
 ```bash
 cd ~/projects/agg-search
 uv venv .venv && VIRTUAL_ENV=$PWD/.venv uv pip install -e .
-.venv/bin/python -m unittest discover -s tests -v     # 期望 302 OK
+.venv/bin/python -m unittest discover -s tests -v     # 期望 326 OK
 ruff check --select F,E9,I001 src tests                # 期望无输出
 ```
 
@@ -115,7 +115,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 ## 6. 给下一个检查者的最小清单
 
 - [ ] `git -C ~/projects/agg-search status` 干净，HEAD 与 `git ls-remote origin main` 一致。
-- [ ] 302 测试 + ruff 通过（第 3 节命令）。
+- [ ] 326 测试 + ruff 通过（第 3 节命令）。
 - [ ] `portals.json` / `docs/portals.md` / `catalog.json` / `docs/catalog.md` 四者同步（`test_portals.py` 已校验）。
 - [ ] `crawl-fetch https://example.com` 返回 200（验证 agent-env 的 CIDR 行生效）。
 - [ ] 元数据 URL 被 blocked；MCP 参数 `allow_private:true` 不生效。
@@ -218,6 +218,13 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 第 23 轮：`docs/stability.md` 稳定性承诺 + 同步测试（文档必须列出所有命令、MCP 工具、协议版本、画像、server 名与 `error_class`）；分类器改为 Production/Stable；发布 1.0.0。
 - 本机回落 0.10.0 → 1.0.0；三门户握手 1.0.0、工具 2/3/2、prompts 正常；元数据 exit 3；example.com 200；`--check` ok；`--show-config` 只有布尔值；无痕 OMP 会话返回真实 DOI。回滚备份 `~/.omp/agent/backups/mcp.json.20261121-013024`；回滚命令 `uv tool install --force agg-search==0.10.0`。真实 Release 上 `publish` 的哈希锁定 build 作业成功（pypi 作业因 `PYPI_PUBLISH` 未设而跳过，属预期；PyPI 由 `uv publish` 上传）。
 - **之后的节奏**：1.0 发布后暂停主动迭代，等待 GitHub 社区反馈（issues/PR/Dependabot）。下一位 Agent 开工时先看 `gh issue list`、`gh pr list`（含 Dependabot 分组 PR），按反馈排期；任何稳定接口的改动都要遵守 `docs/stability.md` 的弃用流程。
+
+## 7.8 1.1.0：MCP 2026-07-28（双时代）
+
+- 起因：1.0 发布后检查上游，发现 MCP 已发布 `2025-11-25` 和破坏性的 `2026-07-28`（无状态、必须实现 `server/discover`），我们只支持到 `2025-06-18`。这是此前各轮的疏漏：一直沿用旧版本号，没有查过协议更新。
+- 实现：`mcp.request_era` 按请求 `_meta` 判断时代；现代请求走 `_handle_modern`（校验版本与必填 `_meta`、补 `resultType`/`serverInfo`/缓存提示），旧请求走原 `_handle_legacy`，行为不变。HTTP 现代请求校验镜像请求头、不发会话。工具参数错误按 SEP-1303 改为 `isError` 工具结果。
+- 验证：`tests/test_mcp_modern.py` 24 项（逐条对应规范条款）；官方 Inspector CLI 2.13.0 三种时代 × stdio/HTTP 全部连通（`docs/agent-tests.md`）。
+- **以后每次开工都先查一次 MCP 规范是否有新版本**（`https://modelcontextprotocol.io/specification/latest` 与 changelog），不要再假设协议没变。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
 

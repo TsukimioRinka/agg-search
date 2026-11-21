@@ -22,7 +22,7 @@ class StabilityDocTest(unittest.TestCase):
     def test_mcp_tools_protocols_and_profiles(self):
         for tool in mcp.ALL_TOOLS:
             self.assertIn("`%s`" % tool, DOC)
-        for version in mcp.SUPPORTED_PROTOCOLS:
+        for version in mcp.ALL_PROTOCOLS:
             self.assertIn("`%s`" % version, DOC)
         for name in profiles.names():
             self.assertIn("`%s`" % name, DOC)

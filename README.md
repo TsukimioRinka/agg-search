@@ -23,7 +23,7 @@ A multi-engine search stack for agents: parallel recall across eleven engines (t
 2. **抓取是阶梯而不是一个函数** —— DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
 3. **排序是两阶段** —— RRF 粗排前 15，再交给 Jina Reranker v3.5 listwise 精排；模型不可用链式回退 v3 → v2，全失败则保留 RRF 顺序，绝不阻塞。
 4. **韧性层是显式的** —— 5 分钟结果缓存 + 15 分钟页面缓存、按错误类型分级的冷却（额度 1h / 反爬 10min / 超时 90s）、引擎健康与延迟上报，缺 key 的引擎提前剔除不占线程。
-5. **面向 Agent 的协议面** —— MCP `2025-06-18`（含 `outputSchema`/`structuredContent`、tool annotations、按门户的 prompts、版本协商）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
+5. **面向 Agent 的协议面** —— MCP 双时代：无状态的 `2026-07-28`（`server/discover`、`resultType`、缓存提示）与走握手的 `2025-11-25` 及更早版本（含 `outputSchema`/`structuredContent`、tool annotations、按门户的 prompts）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
 6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
 
 ## 架构
@@ -145,7 +145,8 @@ crawl-fetch --url https://example.com/post --tier auto --out md
 
 协议行为：
 
-- 版本协商：`2025-06-18` / `2025-03-26` / `2024-11-05`，按客户端请求回选支持的版本。
+- 协议版本：`2026-07-28` 的请求无需握手，版本和客户端能力写在每个请求的 `_meta` 里，不支持的版本返回 `-32022` 并列出支持的版本；旧客户端用 `initialize` 协商 `2025-11-25` / `2025-06-18` / `2025-03-26` / `2024-11-05`，不认识的版本回 `2025-11-25`。
+- 服务端无法执行的工具参数（缺 `query`/`urls`、该是字符串却传了对象、数字不合法、`recency` 等取值不在范围内）按 2025-11-25 起的规定返回 `isError: true` 的工具结果，模型能读到原因并改正；1.0 能用的写法都照旧（`null` 视为未传，越界数字由 CLI 夹取，列表参数可写逗号字符串，未知参数忽略）。未知工具、门户未启用的工具仍是 `-32602`。
 - 工具带 `title`、`annotations`（`readOnlyHint`、`openWorldHint`）和 `outputSchema`；支持结构化输出的客户端直接拿 `structuredContent`，老客户端仍拿文本。
 - 每个工具调用有硬墙钟（search 120s / fetch 300s），超时杀进程组；`notifications/cancelled` 同样会中断。
 - 工具调用在线程池里跑，`ping`/`tools/list` 不会被慢引擎卡住。

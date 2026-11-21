@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.1.0] - 2026-11-21
+
+MCP 2026-07-28 support. The server is now dual-era: modern clients talk to it
+statelessly, legacy clients keep the `initialize` handshake unchanged.
+
+### Added
+
+- **Protocol `2026-07-28`** (stdio and Streamable HTTP). A request carrying
+  `_meta["io.modelcontextprotocol/protocolVersion"]` is served statelessly:
+  `server/discover` (supported versions, capabilities, instructions,
+  `serverInfo`), `tools/list`, `tools/call`, `prompts/list`, `prompts/get`.
+  Results carry `resultType: "complete"` and
+  `_meta["io.modelcontextprotocol/serverInfo"]`; `server/discover` and the
+  list results add `ttlMs` (1 hour) and `cacheScope: "public"`. An unknown
+  version returns `-32022` with `data.supported`; missing required `_meta`
+  fields return `-32602`; `ping`/`initialize` on a modern request return
+  `-32601`. Portal isolation is identical in both eras.
+- Streamable HTTP for modern requests validates the mirrored
+  `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers (base64
+  sentinel decoded) and answers `400 -32020` on mismatch, `400` for version
+  and `_meta` errors, `404` for unknown methods; it never issues or checks
+  `Mcp-Session-Id`, rejects repeated mirrored headers and rejects batches
+  (on stdio too).
+- **Protocol `2025-11-25`** for the `initialize` handshake; an `initialize`
+  asking for an unknown version now gets `2025-11-25` (was `2025-06-18`).
+
+### Changed
+
+- Tool arguments the server cannot run (missing `query`/`urls`, an object
+  where a string is expected, a non-numeric or non-finite number, an unknown
+  `recency`/`tier`/`mode`, an empty `urls` list) return a tool result with
+  `isError: true` and the reason, as required since 2025-11-25 (SEP-1303),
+  instead of a `-32602` protocol error or a failing CLI run. Everything 1.0
+  accepted still works: `null` means "not given", out-of-range numbers are
+  still clamped by the CLI, `engines`/`include_domains`/`exclude_domains`
+  still accept comma strings, unknown argument names are still ignored.
+  Unknown tools and tools a portal does not enable are still `-32602`.
+
+### Fixed
+
+- The HTTP transport logs one line instead of a traceback when a client resets
+  a keep-alive connection.
+
+### Verified
+
+- Official MCP Inspector CLI 2.13.0 in `legacy`, `auto` (discover probe) and
+  `modern` eras over stdio and HTTP (`docs/agent-tests.md`).
+
 ## [1.0.0] - 2026-11-21
 
 First stable release. The public surface is now covered by SemVer: see

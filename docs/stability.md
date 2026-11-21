@@ -14,7 +14,7 @@
 | `error_class` 取值 | `docs/fetching.md` 列出的 15 个值。次版本可能**新增**取值，调用方应把不认识的值当作 `other` |
 | MCP 工具 | 工具名 `search`、`fetch`、`answer`，各自的必填参数与 `outputSchema` 中的字段；门户未启用的工具返回 JSON-RPC `-32602` |
 | MCP 提示 | 名称 `<domain>-research`（无门户时 `web-research`），参数 `topic` |
-| MCP 协议版本 | 支持 `2025-06-18`、`2025-03-26`、`2024-11-05`；新版本会在次版本中加入 |
+| MCP 协议版本 | 无状态的 `2026-07-28`（每个请求在 `_meta` 里带版本，`server/discover`），以及走 `initialize` 握手的 `2025-11-25`、`2025-06-18`、`2025-03-26`、`2024-11-05`；新版本会在次版本中加入 |
 | 画像与门户 | 画像名 `general`、`academic`、`code`、`news`；门户 id `<agent>.<domain>` 与 server 名（`agg-search`、`agg-search-academic`、`agg-search-code`、`agg-search-news`）；`portals.json` 的结构 |
 | 引擎名 | `docs/profiles.md` 与 `--engines` 帮助中列出的名字；新增引擎不算破坏 |
 | 环境变量 | `docs/environment.md` 列出的变量名与含义 |
