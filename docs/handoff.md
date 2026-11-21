@@ -224,6 +224,8 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 起因：1.0 发布后检查上游，发现 MCP 已发布 `2025-11-25` 和破坏性的 `2026-07-28`（无状态、必须实现 `server/discover`），我们只支持到 `2025-06-18`。这是此前各轮的疏漏：一直沿用旧版本号，没有查过协议更新。
 - 实现：`mcp.request_era` 按请求 `_meta` 判断时代；现代请求走 `_handle_modern`（校验版本与必填 `_meta`、补 `resultType`/`serverInfo`/缓存提示），旧请求走原 `_handle_legacy`，行为不变。HTTP 现代请求校验镜像请求头、不发会话。工具参数错误按 SEP-1303 改为 `isError` 工具结果。
 - 验证：`tests/test_mcp_modern.py` 24 项（逐条对应规范条款）；官方 Inspector CLI 2.13.0 三种时代 × stdio/HTTP 全部连通（`docs/agent-tests.md`）。
+- 审查：独立只读审查发现 High 1（参数校验比 1.0 严）、Medium 1、Low 5，全部修复并有回归测试后才合并（PR #15）。
+- 本机回落 1.0.0 → 1.1.0：OMP 走旧握手仍协商到 `2025-06-18`，三门户工具 2/3/2，同一进程也能答 `server/discover`；元数据 exit 3；example.com 200；`--check` ok；无痕 OMP 会话返回真实 DOI。回滚备份 `~/.omp/agent/backups/mcp.json.20261121-155437`；回滚命令 `uv tool install --force agg-search==1.0.0`。
 - **以后每次开工都先查一次 MCP 规范是否有新版本**（`https://modelcontextprotocol.io/specification/latest` 与 changelog），不要再假设协议没变。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
