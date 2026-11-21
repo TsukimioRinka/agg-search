@@ -7,7 +7,10 @@ Design notes
 * Tool calls run in a small thread pool and each subprocess has a hard wall
   clock, so one hung engine or container can never wedge the server; the
   transport keeps answering `ping`/`tools/list` meanwhile.
-* Protocol version is negotiated (2025-06-18 / 2025-03-26 / 2024-11-05);
+* Dual-era protocol: 2026-07-28 requests are stateless (version and client
+  capabilities in `_meta`, `server/discover`, `resultType`, cache hints,
+  `-32022` for unknown versions); legacy clients negotiate 2025-11-25 /
+  2025-06-18 / 2025-03-26 / 2024-11-05 through `initialize`;
   tools advertise `title`, `annotations`, `outputSchema` and return
   `structuredContent` alongside the text content for older clients.
 * A `notifications/cancelled` kills the matching subprocess group.
@@ -19,6 +22,7 @@ import argparse
 import concurrent.futures as cf
 import copy
 import json
+import math
 import os
 import re
 import signal
@@ -38,8 +42,19 @@ except ImportError:  # pragma: no cover - direct script execution
     from fetch import ERROR_CLASSES  # type: ignore[no-redef]
 
 SERVER_NAME = "agg-search"
-PROTOCOL_VERSION = "2025-06-18"
-SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+# Legacy revisions use the `initialize` handshake; PROTOCOL_VERSION is the
+# newest of them and the answer to an initialize asking for anything else.
+PROTOCOL_VERSION = "2025-11-25"
+SUPPORTED_PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
+# Modern revisions are stateless: every request carries its version and the
+# client capabilities in `_meta` (2026-07-28: server/discover, resultType,
+# cache hints, error -32022). The server is dual-era and serves both.
+MODERN_PROTOCOLS = ("2026-07-28",)
+ALL_PROTOCOLS = MODERN_PROTOCOLS + SUPPORTED_PROTOCOLS
+META_VERSION = "io.modelcontextprotocol/protocolVersion"
+META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities"
+META_SERVER_INFO = "io.modelcontextprotocol/serverInfo"
+LIST_TTL_MS = 3600000  # tool/prompt lists are fixed for a server process
 # wall-clock cap per tool call (seconds); a slow search must not wedge the
 # transport, and the fetch ladder may legitimately climb three rungs.
 TOOL_TIMEOUT = {"search": 120.0, "fetch": 300.0, "answer": 180.0}
@@ -64,6 +79,24 @@ def _server_version() -> str:
 
 
 SERVER_INFO = {"name": SERVER_NAME, "version": _server_version()}
+
+
+class ProtocolError(Exception):
+    """A JSON-RPC error with a protocol-defined code, optional `data` and the
+    HTTP status the Streamable HTTP binding requires for it."""
+
+    def __init__(self, code, message, data=None, http_status=200):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.data = data
+        self.http_status = http_status
+
+    def to_error(self):
+        err = {"code": self.code, "message": self.message}
+        if self.data is not None:
+            err["data"] = self.data
+        return err
 
 
 SEARCH_SCHEMA = {
@@ -628,7 +661,7 @@ def call_tool(name: str, arguments: dict, request_id=None):
     return _shape_result(name, out, err, code, timed_out)
 
 
-# --- prompts (MCP 2025-06-18): one research workflow per portal ----------
+# --- prompts: one research workflow per portal ----------
 MAX_PROMPT_ARG = 500
 _PROMPT_UNSAFE = re.compile(
     "[\x00-\x08\x0b-\x1f\x7f-\x9f\u00ad\u200b-\u200f\u202a-\u202e"
@@ -699,20 +732,107 @@ def _negotiate(params: dict) -> str:
     return wanted if wanted in SUPPORTED_PROTOCOLS else PROTOCOL_VERSION
 
 
+CAPABILITIES = {"tools": {"listChanged": False},
+                "prompts": {"listChanged": False}}
+# methods a modern (2026-07-28) request may use; ping, initialize and the
+# handshake notifications do not exist in that revision
+MODERN_METHODS = ("server/discover", "tools/list", "tools/call",
+                  "prompts/list", "prompts/get")
+CACHEABLE_METHODS = ("server/discover", "tools/list", "prompts/list")
+
+
+def _identity(portal):
+    server_info = ({"name": portal["server_name"],
+                    "version": _server_version()} if portal else SERVER_INFO)
+    instructions = (portal["prompts"]["instructions"]
+                    if portal else INSTRUCTIONS)
+    return server_info, instructions
+
+
+def _meta_of(request):
+    params = request.get("params") if isinstance(request, dict) else None
+    meta = params.get("_meta") if isinstance(params, dict) else None
+    return meta if isinstance(meta, dict) else {}
+
+
+def request_era(request):
+    """("modern", version) when the request carries a protocol version in
+    `_meta` (2026-07-28+); ("legacy", None) otherwise. `server/discover` is
+    modern by definition, even when its `_meta` is missing."""
+    params = request.get("params") if isinstance(request, dict) else None
+    meta = params.get("_meta") if isinstance(params, dict) else None
+    if isinstance(meta, dict) and META_VERSION in meta:
+        return "modern", meta.get(META_VERSION)
+    if isinstance(request, dict) and request.get("method") == "server/discover":
+        return "modern", None
+    return "legacy", None
+
+
+def _check_modern(request, version):
+    """Validate the per-request fields of a modern request (raises)."""
+    params = request.get("params")
+    if params is not None and not isinstance(params, dict):
+        raise ProtocolError(-32602, "'params' must be an object",
+                            http_status=400)
+    meta = _meta_of(request)
+    if version is None:
+        raise ProtocolError(-32602, "missing required _meta field %r"
+                            % META_VERSION, http_status=400)
+    if not isinstance(version, str) or version not in ALL_PROTOCOLS:
+        raise ProtocolError(-32022, "Unsupported protocol version",
+                            {"supported": list(ALL_PROTOCOLS),
+                             "requested": version}, http_status=400)
+    if version not in MODERN_PROTOCOLS:
+        # a legacy revision named in _meta: that revision needs initialize
+        raise ProtocolError(-32022, "protocol version %s requires the "
+                            "initialize handshake; use one of %s per request"
+                            % (version, ", ".join(MODERN_PROTOCOLS)),
+                            {"supported": list(ALL_PROTOCOLS),
+                             "requested": version}, http_status=400)
+    if not isinstance(meta.get(META_CAPABILITIES), dict):
+        raise ProtocolError(-32602, "missing required _meta field %r"
+                            % META_CAPABILITIES, http_status=400)
+
+
+def _handle_modern(request, version):
+    _check_modern(request, version)
+    method = request.get("method")
+    if method not in MODERN_METHODS:
+        raise ProtocolError(-32601, "unknown method: %s" % method,
+                            http_status=404)
+    portal = _active_portal()
+    server_info, instructions = _identity(portal)
+    if method == "server/discover":
+        result = {"supportedVersions": list(ALL_PROTOCOLS),
+                  "capabilities": copy.deepcopy(CAPABILITIES),
+                  "instructions": instructions}
+    else:
+        result = dict(_handle_legacy(request))
+    result["resultType"] = "complete"
+    meta = dict(result.get("_meta") or {})
+    meta[META_SERVER_INFO] = server_info
+    result["_meta"] = meta
+    if method in CACHEABLE_METHODS:
+        result["ttlMs"] = LIST_TTL_MS
+        result["cacheScope"] = "public"  # same for every caller of a process
+    return result
+
+
 def handle(request: dict) -> dict | None:
+    era, version = request_era(request)
+    if era == "modern":
+        return _handle_modern(request, version)
+    return _handle_legacy(request)
+
+
+def _handle_legacy(request: dict) -> dict | None:
     method = request.get("method")
 
     if method == "initialize":
-        portal = _active_portal()
-        server_info = ({"name": portal["server_name"],
-                        "version": _server_version()}
-                       if portal else SERVER_INFO)
-        instructions = (portal["prompts"]["instructions"]
-                        if portal else INSTRUCTIONS)
+        server_info, instructions = _identity(_active_portal())
         return {
             "protocolVersion": _negotiate(request.get("params") or {}),
-            "capabilities": {"tools": {"listChanged": False},
-                             "prompts": {"listChanged": False}},
+            "capabilities": copy.deepcopy(CAPABILITIES),
             "serverInfo": server_info,
             "instructions": instructions,
         }
@@ -745,10 +865,80 @@ def handle(request: dict) -> dict | None:
                 "tool %r is not enabled in portal %r (enabled: %s)"
                 % (name, portal["id"] if portal else "default",
                    ",".join(sorted(_allowed_tools(portal)))))
-        arguments = params.get("arguments") or {}
+        arguments = params.get("arguments")
+        if arguments is None:
+            arguments = {}
+        problems = validate_arguments(ALL_TOOLS[name]["inputSchema"], arguments)
+        if problems:
+            # SEP-1303 (2025-11-25): bad arguments are a tool execution
+            # error the model can read and fix, not a protocol error
+            return {"content": [{"type": "text", "text":
+                                 "invalid arguments for %s: %s"
+                                 % (name, "; ".join(problems))}],
+                    "isError": True}
         return call_tool(name, arguments, request.get("id"))
 
     raise NotImplementedError("unknown method: %s" % method)
+
+
+# list arguments the CLI bridge has always accepted as "a,b,c" strings too
+_STRINGY_LISTS = frozenset({"engines", "include_domains", "exclude_domains"})
+_NUMBER = ("integer", "number")
+
+
+def _number_problem(key, value):
+    if value is False:
+        return None  # falsy: the bridge skips it, as before
+    if isinstance(value, bool):
+        return "%r must be a number" % key
+    if isinstance(value, (int, float)):
+        return None if math.isfinite(value) else "%r must be finite" % key
+    if isinstance(value, str):
+        try:
+            return (None if math.isfinite(float(value))
+                    else "%r must be finite" % key)
+        except ValueError:
+            pass
+    return "%r must be a number" % key
+
+
+def validate_arguments(schema, arguments):
+    """Reject only arguments the CLI bridge could never run, with a reason the
+    model can act on (SEP-1303). Deliberately lenient where 1.0 was: `null`
+    means "not given", numbers are passed through (the CLI clamps them),
+    comma strings work for list arguments, unknown keys are ignored."""
+    if not isinstance(arguments, dict):
+        return ["'arguments' must be an object"]
+    problems = []
+    props = schema.get("properties") or {}
+    for key in schema.get("required") or ():
+        if arguments.get(key) is None or arguments.get(key) == "":
+            problems.append("missing required argument %r" % key)
+    for key, value in arguments.items():
+        spec = props.get(key)
+        if value is None or not isinstance(spec, dict):
+            continue
+        kind = spec.get("type")
+        if kind in _NUMBER:
+            problem = _number_problem(key, value)
+            if problem:
+                problems.append(problem)
+        elif kind == "string":
+            if isinstance(value, (dict, list)):
+                problems.append("%r must be a string" % key)
+            elif "enum" in spec and value not in spec["enum"]:
+                problems.append("%r must be one of %s" % (key, spec["enum"]))
+        elif kind == "array":
+            if isinstance(value, str) and key in _STRINGY_LISTS:
+                continue
+            if not isinstance(value, list):
+                problems.append("%r must be an array" % key)
+            elif "minItems" in spec and len(value) < spec["minItems"]:
+                problems.append("%r needs at least %d item(s)"
+                                % (key, spec["minItems"]))
+            elif key == "urls" and not all(isinstance(u, str) for u in value):
+                problems.append("'urls' must contain strings")
+    return problems[:10]
 
 
 def send(payload: dict) -> None:
@@ -793,6 +983,9 @@ def _dispatch(request: object, pool) -> None:
         return
     try:
         result = handle(request)
+    except ProtocolError as exc:
+        send({"jsonrpc": "2.0", "id": request["id"], "error": exc.to_error()})
+        return
     except KeyError as exc:
         send(_error(request["id"], -32602, str(exc.args[0])))
         return
@@ -809,6 +1002,9 @@ def _dispatch(request: object, pool) -> None:
 def _run_and_send(request: dict) -> None:
     try:
         result = handle(request)
+    except ProtocolError as exc:
+        send({"jsonrpc": "2.0", "id": request["id"], "error": exc.to_error()})
+        return
     except KeyError as exc:
         send(_error(request["id"], -32602, str(exc.args[0])))
         return
@@ -858,6 +1054,12 @@ def main(argv=None) -> None:
                 send(_error(None, -32700, str(exc)))
                 continue
             if isinstance(payload, list):  # pre-2025-06-18 JSON-RPC batch
+                if any(isinstance(m, dict) and request_era(m)[0] == "modern"
+                       for m in payload):
+                    send(_error(None, -32600, "invalid request: batches are "
+                                "not allowed for protocol version %s"
+                                % MODERN_PROTOCOLS[0]))
+                    continue
                 for item in payload:
                     _dispatch(item, pool)
                 continue

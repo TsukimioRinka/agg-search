@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Streamable HTTP transport for the agg-search MCP server (spec 2025-06-18).
+"""Streamable HTTP transport for the agg-search MCP server.
+
+Dual-era: legacy revisions (2024-11-05 .. 2025-11-25) use ``initialize`` and
+optional sessions; 2026-07-28 requests are stateless, carry their version in
+``_meta`` and must mirror it in ``MCP-Protocol-Version``/``Mcp-Method``/
+``Mcp-Name`` headers (validated, ``400`` + ``-32020`` on mismatch).
 
 Usage:
     python -m agg_search.http_transport --host 127.0.0.1 --port 8765 --path /mcp
@@ -25,6 +30,8 @@ Design notes
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import ipaddress
 import json
 import os
@@ -141,6 +148,69 @@ def _clean_to_log(value):
     return "".join(ch if " " <= ch <= "~" else "?" for ch in value)[:200]
 
 
+class _Response(dict):
+    """A JSON-RPC response dict that also remembers its HTTP status."""
+
+    http_status = 200
+
+
+def _with_status(response, status):
+    out = _Response(response)
+    out.http_status = status
+    return out
+
+
+_B64_SENTINEL = ("=?base64?", "?=")
+
+
+def decode_header_value(value):
+    """Undo the `=?base64?...?=` sentinel (2026-07-28 Value Encoding);
+    None when the header is malformed."""
+    if value is None:
+        return None
+    if any(not (ch == "\t" or " " <= ch <= "~") for ch in value):
+        return None
+    head, tail = _B64_SENTINEL
+    if value.startswith(head) and value.endswith(tail) and \
+            len(value) >= len(head) + len(tail):
+        try:
+            raw = base64.b64decode(value[len(head):-len(tail)], validate=True)
+            return raw.decode("utf-8")
+        except (binascii.Error, ValueError):
+            return None
+    return value
+
+
+def modern_header_problem(message, headers):
+    """2026-07-28 Server Validation: the mirrored headers must be present
+    and equal the body. Returns a message for -32020, or None when valid."""
+    params = message.get("params")
+    params = params if isinstance(params, dict) else {}
+    meta = mcp._meta_of(message)
+    checks = [("Mcp-Method", message.get("method"))]
+    if meta.get(mcp.META_VERSION) is not None:
+        # without a body version the request is malformed: -32602 decides
+        checks.insert(0, ("MCP-Protocol-Version", meta.get(mcp.META_VERSION)))
+    if message.get("method") in ("tools/call", "prompts/get"):
+        checks.append(("Mcp-Name", params.get("name")))
+    for header, body_value in checks:
+        values = headers.get_all(header) or []
+        if len(values) > 1:
+            # two copies let a proxy and this server read different values
+            return "Header mismatch: %s header is repeated" % header
+        raw = values[0] if values else None
+        if raw is None:
+            return "Header mismatch: required header %s is missing" % header
+        decoded = (decode_header_value(raw) if header == "Mcp-Name"
+                   else (raw if decode_header_value(raw) == raw else None))
+        if decoded is None:
+            return "Header mismatch: %s header is malformed" % header
+        if decoded != body_value:
+            return ("Header mismatch: %s header does not match the request "
+                    "body" % header)
+    return None
+
+
 def _process_message(message):
     """Run one JSON-RPC message.
 
@@ -170,6 +240,10 @@ def _process_message(message):
     request_id = message.get("id")
     try:
         result = mcp.handle(message)
+    except mcp.ProtocolError as exc:
+        response = {"jsonrpc": "2.0", "id": request_id,
+                    "error": exc.to_error()}
+        return _with_status(response, exc.http_status), False
     except KeyError as exc:
         detail = exc.args[0] if exc.args else "unknown tool"
         return _jsonrpc_error(request_id, -32602, str(detail)), False
@@ -345,16 +419,55 @@ class MCPHandler(BaseHTTPRequestHandler):
             return self._reject(413, "request body too large")
 
         body = self.rfile.read(length) if length else b""
-        rejected = self._session_ok()
-        if rejected:
-            return rejected
-
         try:
             payload = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
+            rejected = self._session_ok()
+            if rejected:
+                return rejected
             self._send_json(200, _jsonrpc_error(None, -32700, "parse error"))
             return 200
+
+        if isinstance(payload, dict) and \
+                mcp.request_era(payload)[0] == "modern":
+            return self._dispatch_modern(payload)
+        if isinstance(payload, list) and any(
+                isinstance(m, dict) and mcp.request_era(m)[0] == "modern"
+                for m in payload):
+            # 2026-07-28: a POST body is exactly one JSON-RPC message
+            self._send_json(400, _jsonrpc_error(
+                None, -32600, "invalid request: batches are not allowed "
+                "for protocol version %s" % mcp.MODERN_PROTOCOLS[0]))
+            return 400
+        header_version = self.headers.get("MCP-Protocol-Version")
+        if header_version in mcp.MODERN_PROTOCOLS:
+            # a modern header on a body without per-request metadata
+            request_id = payload.get("id") if isinstance(payload, dict) else None
+            self._send_json(400, _jsonrpc_error(
+                request_id, -32602, "missing required _meta field %r"
+                % mcp.META_VERSION))
+            return 400
+        rejected = self._session_ok()
+        if rejected:
+            return rejected
         return self._dispatch(payload)
+
+    def _dispatch_modern(self, message):
+        """Stateless request: validate mirrored headers, never mint or check
+        sessions (an Mcp-Session-Id header is ignored)."""
+        problem = modern_header_problem(message, self.headers)
+        if problem:
+            self._send_json(400, {"jsonrpc": "2.0", "id": message.get("id"),
+                                  "error": {"code": -32020,
+                                            "message": problem}})
+            return 400
+        response, _ = _process_message(message)
+        if response is None:
+            self._write(202, b"")
+            return 202
+        status = getattr(response, "http_status", 200)
+        self._send_json(status, dict(response))
+        return status
 
     def _dispatch(self, payload):
         initialized = False
@@ -456,6 +569,19 @@ class _ThreadingHTTPServer(ThreadingHTTPServer):
             self._slots.release()
             raise
 
+    def handle_error(self, request, client_address):
+        """A client hanging up mid-connection is routine (keep-alive sockets
+        closed by the peer); log one line instead of a traceback."""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionResetError, BrokenPipeError,
+                            ConnectionAbortedError, TimeoutError)):
+            with LOG_LOCK:
+                sys.stderr.write("connection from %s closed by peer (%s)\n"
+                                 % (client_address[0], type(exc).__name__))
+                sys.stderr.flush()
+            return
+        super().handle_error(request, client_address)
+
     def shutdown_request(self, request):
         try:
             super().shutdown_request(request)
@@ -482,7 +608,7 @@ def main(argv=None):
         __version__ = "0.0.0+source"
     parser = argparse.ArgumentParser(
         prog="python -m agg_search.http_transport",
-        description="Streamable HTTP (MCP 2025-06-18) for agg-search.")
+        description="Streamable HTTP (MCP 2026-07-28 and legacy) for agg-search.")
     parser.add_argument("--version", action="version",
                         version=f"%(prog)s {__version__}")
     parser.add_argument("--host", default="127.0.0.1")
