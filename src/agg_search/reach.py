@@ -34,9 +34,9 @@ CHANNEL_ENGINES = {
     "ar_bilibili": "bilibili",
 }
 
-# host suffix -> channel for `read`; default channels only. Optional
-# channels are mapped too: when a user adds one, the rung starts working
-# without another code change.
+# host suffix -> channel for `read`; default channels plus optional ones
+# that actually expose a read action. Optional channels are gated by
+# `_channel_ready` so an uninstalled one costs ~0.1s, not a browser probe.
 READ_HOSTS = (
     ("bilibili.com", "bilibili"),
     ("b23.tv", "bilibili"),
@@ -51,9 +51,14 @@ READ_HOSTS = (
     ("xhslink.com", "xiaohongshu"),
     ("x.com", "twitter"),
     ("twitter.com", "twitter"),
-    ("xueqiu.com", "xueqiu"),
     ("linkedin.com", "linkedin"),
 )
+
+# Channels installed with `agent-reach setup`; they need no doctor probe.
+DEFAULT_CHANNELS = frozenset({"github", "youtube", "bilibili", "v2ex", "web"})
+_READY = {}
+
+_TWITTER_HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 
 _INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]")
 _CONTROL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -133,6 +138,8 @@ def search(engine, query, limit, timeout=DEFAULT_TIMEOUT):
     query = (query or "").strip()
     if not query:
         return [], None
+    if not _channel_ready(channel):
+        return None, "agent-reach %s: channel not added" % channel
     limit = max(1, min(int(limit or 5), MAX_LIMIT))
     # `--` keeps a query that starts with "-" from becoming a flag.
     payload, err = _run(channel, "search", [query],
@@ -185,12 +192,63 @@ def channel_for(url):
     return None
 
 
+def _channel_ready(channel):
+    """False only when Agent-Reach explicitly reports `not_added`.
+
+    `doctor` is local and takes ~0.1s; probing an uninstalled browser
+    channel instead costs 3-4s before it fails. Fail open on any unexpected
+    output or error so a doctor quirk never disables a working channel."""
+    if channel in DEFAULT_CHANNELS:
+        return True
+    if channel in _READY:
+        return _READY[channel]
+    ready = True
+    try:
+        proc = subprocess.run(
+            [binary(), "doctor"], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=5.0)
+        payload = _last_json(proc.stdout) or {}
+        result = payload.get("result")
+        rows = result.get("channels") if isinstance(result, dict) else None
+        for row in rows or ():
+            if isinstance(row, dict) and row.get("channel") == channel:
+                ready = str(row.get("status") or "") != "not_added"
+                break
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _READY[channel] = ready
+    return ready
+
+
+def read_spec(channel, url):
+    """(action, target) for one URL, or (None, None) when unreadable.
+
+    Twitter exposes `thread`/`profile`, not a generic `read`."""
+    if channel != "twitter":
+        return "read", url
+    try:
+        path = urllib.parse.urlsplit(url or "").path or ""
+    except ValueError:
+        return None, None
+    if "/status/" in path:
+        return "thread", url
+    handle = path.strip("/").split("/")[0]
+    if _TWITTER_HANDLE.match(handle):
+        return "profile", handle
+    return None, None
+
+
 def read(url, timeout=20.0, text_limit=8000):
     """(result, error) shaped like the container ladder's page dicts."""
     channel = channel_for(url)
     if not channel:
         return None, "no agent-reach channel for this host"
-    payload, err = _run(channel, "read", [url], [], timeout)
+    if not _channel_ready(channel):
+        return None, "agent-reach %s: channel not added" % channel
+    action, target = read_spec(channel, url)
+    if action is None:
+        return None, "agent-reach %s has no read action for this URL" % channel
+    payload, err = _run(channel, action, [target], [], timeout)
     if err:
         return None, err
     items = [item for item in (payload.get("items") or [])

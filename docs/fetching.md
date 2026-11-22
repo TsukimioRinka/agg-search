@@ -12,7 +12,8 @@ Agent-Reach can read (GitHub, Bilibili, YouTube, V2EX, plus optional channels
 the user added), `agent-reach read` returns structured text before any
 DeepSeek or container call. A missing binary, login wall or thin page falls
 through silently; `--no-reach` disables the rung. The result line carries
-`tier_used: "agent-reach:<channel>"`.
+`tier_used: "agent-reach:<channel>"`. Optional channels that were never added
+are skipped after a local `doctor` probe (~0.1s), not a browser launch.
 
 Rungs 1-3 run in the `crawl-agent` container. The host never loads
 scrapling or a browser: `src/agg_search/fetch.py` (stdlib only, entry point

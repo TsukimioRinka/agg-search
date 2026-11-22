@@ -32,6 +32,17 @@ class ChannelMapTest(unittest.TestCase):
         self.assertEqual(reach.channel_for("https://youtu.be/x"), "youtube")
         self.assertIsNone(reach.channel_for("https://notgithub.com/x"))
         self.assertIsNone(reach.channel_for("https://example.com/github.com"))
+        # xueqiu has no read action; keeping it mapped would only waste a call.
+        self.assertIsNone(reach.channel_for("https://xueqiu.com/S/SH600000"))
+
+    def test_twitter_uses_thread_and_profile_actions(self):
+        url = "https://x.com/someone/status/12345"
+        self.assertEqual(reach.read_spec("twitter", url), ("thread", url))
+        self.assertEqual(reach.read_spec("twitter", "https://x.com/jack"),
+                         ("profile", "jack"))
+        self.assertEqual(reach.read_spec("twitter", "https://x.com/"),
+                         (None, None))
+        self.assertEqual(reach.read_spec("github", url), ("read", url))
 
     def test_engine_names_match_the_registry(self):
         self.assertEqual(set(reach.CHANNEL_ENGINES),
@@ -138,6 +149,60 @@ class ReadTest(unittest.TestCase):
         page, err = reach.read("https://example.com/x")
         self.assertIsNone(page)
         self.assertIn("no agent-reach channel", err)
+
+
+class ReadinessTest(unittest.TestCase):
+    def setUp(self):
+        reach._READY.clear()
+        self.addCleanup(reach._READY.clear)
+
+    @staticmethod
+    def doctor(status):
+        return json.dumps({
+            "schema_version": 1, "ok": True, "action": "doctor",
+            "result": {"channels": [{"channel": "xiaohongshu",
+                                     "status": status}]},
+        })
+
+    def test_default_channel_never_probes_doctor(self):
+        payload = envelope([{"title": "Repo", "url": "https://github.com/o/r",
+                             "text": "x" * 20}])
+        run = mock.Mock(return_value=proc(payload))
+        with mock.patch.object(reach.subprocess, "run", run):
+            page, err = reach.read("https://github.com/o/r")
+        self.assertIsNone(err)
+        self.assertEqual(run.call_count, 1)
+        cmd = run.call_args[0][0]
+        self.assertEqual(cmd[1:3], ["github", "read"])
+
+    def test_not_added_channel_skips_the_browser_probe(self):
+        run = mock.Mock(return_value=proc(self.doctor("not_added")))
+        with mock.patch.object(reach.subprocess, "run", run):
+            page, err = reach.read("https://www.xiaohongshu.com/explore/1")
+        self.assertIsNone(page)
+        self.assertIn("channel not added", err)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args[0][0][1], "doctor")
+
+    def test_added_channel_proceeds_to_read(self):
+        payload = envelope([{"title": "Note", "text": "x" * 20,
+                             "url": "https://www.xiaohongshu.com/explore/1"}])
+        run = mock.Mock(side_effect=[proc(self.doctor("unverified")),
+                                     proc(payload)])
+        with mock.patch.object(reach.subprocess, "run", run):
+            page, err = reach.read("https://www.xiaohongshu.com/explore/1")
+        self.assertIsNone(err)
+        self.assertEqual(page["tier_used"], "agent-reach:xiaohongshu")
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_args[0][0][1], "xiaohongshu")
+
+    def test_doctor_failure_fails_open(self):
+        run = mock.Mock(side_effect=FileNotFoundError())
+        with mock.patch.object(reach.subprocess, "run", run):
+            page, err = reach.read("https://www.xiaohongshu.com/explore/1")
+        self.assertIsNone(page)
+        self.assertIn("no agent-reach", err)
+        self.assertIs(reach._READY["xiaohongshu"], True)
 
 
 class ProfileTest(unittest.TestCase):

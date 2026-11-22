@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.1] - 2026-11-22
+
+### Fixed
+
+- Agent-Reach rung probes optional channels with `doctor` before reading: an
+  uninstalled Reddit / Xiaohongshu / LinkedIn / X URL now fails in ~0.1s
+  instead of a 3–4s browser probe, then falls through to the normal ladder.
+- X/Twitter URLs use the `thread` action for status links and `profile` for
+  handles (the channel has no generic `read`); `xueqiu` is no longer mapped
+  as a read host for the same reason. Doctor failures fail open.
+
 ## [1.2.0] - 2026-11-22
 
 ### Added

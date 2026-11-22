@@ -30,7 +30,7 @@
 
 ## 2. 当前状态（2026-11-22）
 
-- 版本 `1.2.0`（SemVer 承诺见 `docs/stability.md`），340 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
+- 版本 `1.2.1`（SemVer 承诺见 `docs/stability.md`），345 个离线测试，ruff（F/E9/I001）干净，工作区无未提交改动。
 - PyPI `1.2.0`；MCP Registry `1.2.0 active`（1.1.0 及更早已 deprecated）；GitHub `v1.2.0`。
 - 能力面：CLI + 双时代 MCP（无状态 2026-07-28 + 握手 2025-11-25 及更早）+ stdio/streamable HTTP、5 个领域画像、4 个免 key 引擎（openalex/hn/stack/arxiv）、3 个平台源（`ar_github`/`ar_youtube`/`ar_bilibili`，经可选 Agent-Reach CLI）、2 个新闻垂直引擎（brave_news/serper_news，复用原 key，opt-in，不在 news 默认里）、70 个 `agent × domain` 门户隔离（`portals.json` / `docs/portals.md` / `agg-search-install --portal`）、按门户隔离 MCP 工具子集/顺序（`academic` 暴露 `search -> fetch -> answer`；`code`/`news`/`general` 暴露 `search -> fetch`）与领域 prompt（`expand`/`answer`/`instructions`/`filter_hint`）、冷却/缺 key 后的 keyless fallback、内容级去重（默认开启、`--no-dedupe` 可关）、权威域软先验（`academic=1.35`、`code=1.25`、`code blend=0.4`）、opt-in `--answer-fetch N`、本地反馈回路、14 客户端配置生成器。
 - 安全面（延续 0.4.1 审计）：元数据无条件拦截、3xx 拒绝、容器内最终 URL 复检、`allow_private`/`allow_cidrs` 只允许服务端环境变量、引擎响应 4 MiB 上限、Markdown 转义与控制字符剥离、HTTP 拒绝重复 Content-Length/CL+TE 且有 30s 超时与 64 连接上限、MCP 在飞调用上限 16；非门户工具调用（如 `code` 门户调 `answer`）返回 JSON-RPC `-32602`。
@@ -40,7 +40,7 @@
 ```bash
 cd ~/projects/agg-search
 uv venv .venv && VIRTUAL_ENV=$PWD/.venv uv pip install -e .
-.venv/bin/python -m unittest discover -s tests -v     # 期望 340 OK
+.venv/bin/python -m unittest discover -s tests -v     # 期望 345 OK
 ruff check --select F,E9,I001 src tests                # 期望无输出
 ```
 
@@ -115,7 +115,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 ## 6. 给下一个检查者的最小清单
 
 - [ ] `git -C ~/projects/agg-search status` 干净，HEAD 与 `git ls-remote origin main` 一致。
-- [ ] 340 测试 + ruff 通过（第 3 节命令）。
+- [ ] 345 测试 + ruff 通过（第 3 节命令）。
 - [ ] `portals.json` / `docs/portals.md` / `catalog.json` / `docs/catalog.md` 四者同步（`test_portals.py` 已校验）。
 - [ ] `crawl-fetch https://example.com` 返回 200（验证 agent-env 的 CIDR 行生效）。
 - [ ] 元数据 URL 被 blocked；MCP 参数 `allow_private:true` 不生效。
@@ -228,7 +228,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 本机回落 1.0.0 → 1.1.0：OMP 走旧握手仍协商到 `2025-06-18`，三门户工具 2/3/2，同一进程也能答 `server/discover`；元数据 exit 3；example.com 200；`--check` ok；无痕 OMP 会话返回真实 DOI。回滚备份 `~/.omp/agent/backups/mcp.json.20261121-155437`；回滚命令 `uv tool install --force agg-search==1.0.0`。
 - **以后每次开工都先查一次 MCP 规范是否有新版本**（`https://modelcontextprotocol.io/specification/latest` 与 changelog），不要再假设协议没变。
 
-## 7.9 1.2.0：平台源（Agent-Reach）
+## 7.9 1.2.0/1.2.1：平台源（Agent-Reach）
 
 - 起因：通用 web 引擎覆盖不到 GitHub/YouTube/B站/小红书/Reddit 等平台；Agent-Reach 提供统一 JSON CLI，补的是平台通道，不是又一个通用搜索引擎。
 - 实现：`reach.py` 子进程桥（零新依赖）；`ar_github`/`ar_youtube`/`ar_bilibili`（`default: False`，权重 0.8/0.6/0.5）；`platform` 画像与 `agg-search-platform` 门户；`crawl-fetch` 的 `auto` 档在 DeepSeek 前对平台 URL 走 `agent-reach read`。`platform` 画像带 `primary`，fast 模式至少等一个平台源有结果。
@@ -236,6 +236,7 @@ HOME=/tmp/handoff-home .venv/bin/agg-search-install --portal cursor.academic --c
 - 验证：340 个离线测试；MCP 默认 `fast=true` 在 `ar_github` 返回后 808ms 提前返回；`AGENT_REACH_BIN=/nonexistent` 612ms 降级且 web 引擎正常；GitHub 抓取 1.3s（同 URL 走 DeepSeek 15.8s）。
 - 本机：Agent-Reach 1.6.1，默认渠道 `github/youtube/bilibili/v2ex/web`，零登录；agg-search 1.2.0 从本地 checkout 安装。小红书/Reddit/X 属可选渠道，需 Chrome 与本人登录，尚未启用。
 - 发布：PyPI `1.2.0`（`uv publish`）；MCP Registry `1.2.0 active`（1.1.0 deprecate）；GitHub release `v1.2.0`（publish workflow build 成功，pypi job 因 `PYPI_PUBLISH` 未设而 skipped，属预期）。`uvx --from agg-search@1.2.0 agg-search --version` 返回 1.2.0。
+- 1.2.1 修复（345 测试）：可选渠道先用本地 `doctor` 判定 `not_added`，未安装时 ~0.1s 跳过（原小红书 4.3s 浏览器探测）；X/Twitter 状态链接走 `thread`、主页走 `profile`（该渠道没有通用 `read`）；移除无 `read` 动作的雪球映射；doctor 异常一律 fail-open。
 - 回滚：`uv tool install --force agg-search==1.1.0`；或 `--no-reach` / 不传 `--profile platform` 即回到原链路。
 
 ## 8. 门户隔离与领域强化（0.5.0 已完成及后续可选方向）
