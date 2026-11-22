@@ -50,12 +50,13 @@ import urllib.request
 from xml.etree import ElementTree
 
 try:  # package import (installed, `python -m agg_search.search`)
-    from . import engine_specs, learn, portals, profiles
+    from . import engine_specs, learn, portals, profiles, reach
 except ImportError:  # pragma: no cover - direct script execution
     import engine_specs  # type: ignore[no-redef]
     import learn  # type: ignore[no-redef]
     import portals  # type: ignore[no-redef]
     import profiles  # type: ignore[no-redef]
+    import reach  # type: ignore[no-redef]
 
 ENV_FILES = (os.path.expanduser("~/.config/agent-env"),
              os.path.expanduser("~/.config/ai-keys.env"))
@@ -1002,6 +1003,22 @@ def eng_serper_news(q, n, recency):
     return out[:n], None
 
 
+def eng_agent_reach(name, q, n, recency=None):
+    """Platform-native recall through the optional Agent-Reach CLI.
+
+    A missing binary is reported as a skip (no cooldown); platform rate
+    limits, timeouts and bot walls map to the same error vocabulary as the
+    HTTP engines. `recency` is not passed: these channels rank by their own
+    relevance and most items carry no usable timestamp."""
+    try:
+        timeout = float(getenv("AGENT_REACH_TIMEOUT",
+                               str(reach.DEFAULT_TIMEOUT)))
+    except (TypeError, ValueError):
+        timeout = reach.DEFAULT_TIMEOUT
+    timeout = max(1.0, min(timeout, 60.0))
+    return reach.search(name, q, n, timeout=timeout)
+
+
 _ENGINE_FNS = {
     "exa": lambda q, n, r: eng_exa(q, n),
     "brave": lambda q, n, r: eng_brave(q, n, r),
@@ -1017,6 +1034,9 @@ _ENGINE_FNS = {
     "arxiv": lambda q, n, r: eng_arxiv(q, n, r),
     "brave_news": lambda q, n, r: eng_brave_news(q, n, r),
     "serper_news": lambda q, n, r: eng_serper_news(q, n, r),
+    "ar_github": lambda q, n, r: eng_agent_reach("ar_github", q, n),
+    "ar_youtube": lambda q, n, r: eng_agent_reach("ar_youtube", q, n),
+    "ar_bilibili": lambda q, n, r: eng_agent_reach("ar_bilibili", q, n),
 }
 # name: (fn(q, n, recency), rrf weight) — weights come from engine_specs.
 ENGINES = {name: (_ENGINE_FNS[name], engine_specs.ENGINE_SPECS[name]["weight"])

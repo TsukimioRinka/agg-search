@@ -6,6 +6,12 @@ Rung 0 (when DEEPSEEK_API_KEY is set): DeepSeek's official Fetch API
 HTTP call, no container. Thin/failed results fall through to the container
 ladder. `--no-deepseek` skips it; `--tier deepseek` runs it alone.
 
+Platform rung (auto only, before rung 0): when the URL belongs to a platform
+Agent-Reach can read (GitHub, Bilibili, YouTube, V2EX, plus optional channels
+the user added), `agent-reach read` returns structured text without a
+container. A missing binary or a thin page falls through silently;
+`--no-reach` skips the rung.
+
 Rungs 1-3 run inside the crawl-agent container (see docs/fetching.md);
 the host never loads scrapling or a browser. This script only assembles and
 runs `crawl-env` and relays its JSON output.
@@ -34,9 +40,10 @@ import urllib.request
 from pathlib import Path
 
 try:  # package import (installed, `python -m agg_search.fetch`)
-    from . import learn
+    from . import learn, reach
 except ImportError:  # pragma: no cover - direct script execution
     import learn  # type: ignore[no-redef]
+    import reach  # type: ignore[no-redef]
 
 PKG_DIR = str(Path(__file__).resolve().parent)
 CRAWL_ENV_FALLBACK = os.path.expanduser("~/.local/bin/crawl-env")
@@ -122,7 +129,8 @@ def emit(d):
 
 def cache_key(url, a):
     parts = [url, a.tier, a.out, str(a.text_limit),
-             str(bool(getattr(a, "allow_private", False)))]
+             str(bool(getattr(a, "allow_private", False))),
+             str(bool(getattr(a, "no_reach", False)))]
     return hashlib.sha256("\x00".join(parts).encode()).hexdigest()[:32]
 
 
@@ -368,6 +376,8 @@ def main():
                     choices=("auto", "deepseek", "static", "dynamic", "stealth"))
     ap.add_argument("--no-deepseek", action="store_true",
                     help="skip the DeepSeek Fetch API rung in auto mode")
+    ap.add_argument("--no-reach", action="store_true",
+                    help="skip the Agent-Reach platform rung in auto mode")
     ap.add_argument("--timeout", type=int, default=45)
     ap.add_argument("--out", default="json", choices=("json", "md"))
     ap.add_argument("--text-limit", type=int, default=8000,
@@ -432,10 +442,29 @@ def main():
     guarded = pending
 
     leftover = guarded
+    if a.tier == "auto" and not a.no_reach:
+        # Platform-native read: structured text for GitHub/Bilibili/YouTube/
+        # V2EX before spending a DeepSeek call or a container run. Failures
+        # (binary absent, login wall, thin page) defer silently to the ladder.
+        pending = []
+        for u in guarded:
+            if reach.channel_for(u) is None:
+                pending.append(u)
+                continue
+            d, _err = reach.read(u, timeout=min(float(a.timeout), 20.0),
+                                 text_limit=a.text_limit)
+            if d is None or not usable(d) or len(d.get("text") or "") < 40:
+                pending.append(u)
+                continue
+            print(json.dumps(d, ensure_ascii=False))
+            remember(d)
+            ok = True
+        leftover = pending
+
     ds_key = getenv("DEEPSEEK_API_KEY")
     if a.tier == "deepseek" or (a.tier == "auto" and ds_key and not a.no_deepseek):
-        leftover = []
-        for u in guarded:
+        pending, leftover = leftover, []
+        for u in pending:
             d = deepseek_fetch(u, a, ds_key)
             if d["blocked"] or d["error"]:
                 leftover.append(u)

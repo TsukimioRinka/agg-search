@@ -7,6 +7,13 @@ returns clean Markdown in ~1s — no container, and the exit IP is DeepSeek's
 403/404, or timeout falls through to the container ladder silently in `auto`
 mode. `--tier deepseek` runs rung 0 alone; `--no-deepseek` disables it.
 
+Platform rung (host side, `auto` only): when the URL belongs to a platform
+Agent-Reach can read (GitHub, Bilibili, YouTube, V2EX, plus optional channels
+the user added), `agent-reach read` returns structured text before any
+DeepSeek or container call. A missing binary, login wall or thin page falls
+through silently; `--no-reach` disables the rung. The result line carries
+`tier_used: "agent-reach:<channel>"`.
+
 Rungs 1-3 run in the `crawl-agent` container. The host never loads
 scrapling or a browser: `src/agg_search/fetch.py` (stdlib only, entry point
 `crawl-fetch`) just assembles a `crawl-env` call relaying
@@ -17,7 +24,7 @@ scrapling or a browser: `src/agg_search/fetch.py` (stdlib only, entry point
 ```sh
 agg-search "<query>" --top-n 10                       # multi-engine recall + RRF + Jina
 crawl-fetch --url <url...> [--tier auto|deepseek|static|dynamic|stealth] \
-  [--no-deepseek] [--timeout 45] [--out json|md] [--text-limit 8000] [--proxy URL] \
+  [--no-deepseek] [--no-reach] [--timeout 45] [--out json|md] [--text-limit 8000] [--proxy URL] \
   [--persist] [--headful] [--allow-private] [--no-cache]
 
 # no install needed (source checkout):
@@ -43,7 +50,8 @@ Each URL yields exactly one JSON line (`tier_used` says which rung served it).
 | `dynamic` | `DynamicFetcher` (playwright chromium, JS render) | SPA, lazy-load, waiting selectors |
 | `stealth` | `StealthyFetcher` (patchright chromium, Cloudflare solving) | `Just a moment` / cf-challenge / captcha |
 
-`auto` climbs the ladder (deepseek first when keyed); a tier's result is rejected
+`auto` climbs the ladder (platform rung on matched hosts, then deepseek when
+keyed, then static → dynamic → stealth); a tier's result is rejected
 (escalate) when any of:
 HTTP != 200; body contains a block marker (`just a moment`, `cf-challenge`,
 `attention required`, `verify you are human`, `enable javascript and cookies`,

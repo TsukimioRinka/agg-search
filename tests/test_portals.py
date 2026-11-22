@@ -23,7 +23,7 @@ class PortalModelTest(unittest.TestCase):
         self.assertEqual(set(portals.DOMAIN_SPECS), set(profiles.PROFILES))
         ids = portals.portal_ids()
         self.assertEqual(len(ids), len(install.CLIENTS) * len(profiles.PROFILES))
-        self.assertEqual(len(ids), 56)
+        self.assertEqual(len(ids), 70)
 
     def test_omp_portal_registered_and_differs_from_generic(self):
         self.assertIn("omp", portals.agent_names())

@@ -7,7 +7,7 @@
 
 多引擎并行召回 + RRF 融合 + Jina 精排的搜索工具链：**CLI + MCP server（stdio/HTTP）+ 分层抓取**，宿主机零依赖（纯 Python 标准库）。
 
-A multi-engine search stack for agents: parallel recall across eleven engines (three of them keyless domain sources), RRF fusion, listwise reranking, domain profiles, a local feedback loop, plus a tiered fetcher. Ships as a CLI and an MCP server — stdio, or streamable HTTP — with standard library only on the host.
+A multi-engine search stack for agents: parallel recall across fourteen engines (three platform-native sources through the optional Agent-Reach CLI, three keyless domain sources), RRF fusion, listwise reranking, domain profiles, a local feedback loop, plus a tiered fetcher. Ships as a CLI and an MCP server — stdio, or streamable HTTP — with standard library only on the host.
 
 ![agg-search terminal demo](docs/demo.svg)
 
@@ -20,11 +20,11 @@ A multi-engine search stack for agents: parallel recall across eleven engines (t
 同类项目不少，但多数是「多引擎 + 简单合并」或「零 key 依赖单一索引」。这个项目的差异在六件事：
 
 1. **DeepSeek 搜索/抓取是一等公民** —— 官方 `/v1/tools/search` 自带 `rerank_score`，`/v1/tools/fetch` 服务端取页直接给 Markdown，省掉容器。
-2. **抓取是阶梯而不是一个函数** —— DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
+2. **抓取是阶梯而不是一个函数** —— 平台 URL 先走 Agent-Reach 结构化读取，再 DeepSeek Fetch → 静态 → 动态 → 反爬，逐级升级，跑在隔离容器里，宿主机不装浏览器。
 3. **排序是两阶段** —— RRF 粗排前 15，再交给 Jina Reranker v3.5 listwise 精排；模型不可用链式回退 v3 → v2，全失败则保留 RRF 顺序，绝不阻塞。
 4. **韧性层是显式的** —— 5 分钟结果缓存 + 15 分钟页面缓存、按错误类型分级的冷却（额度 1h / 反爬 10min / 超时 90s）、引擎健康与延迟上报，缺 key 的引擎提前剔除不占线程。
 5. **面向 Agent 的协议面** —— MCP 双时代：无状态的 `2026-07-28`（`server/discover`、`resultType`、缓存提示）与走握手的 `2025-11-25` 及更早版本（含 `outputSchema`/`structuredContent`、tool annotations、按门户的 prompts）、stdio 与 streamable HTTP 两种传输、按调用计的硬超时与 `notifications/cancelled`、14 家客户端的配置生成器。
-6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
+6. **领域画像 + 本地反馈回路** —— `--profile academic|code|news|platform` 换的是引擎组合、RRF 权重、默认时效与摘要长度（数据驱动，不改代码）；`search` 记录哪些引擎召回了结果、`fetch` 记录哪些被真正读过，`agg-search-tune` 据此调整引擎权重，越用越贴合本机习惯。
 
 ## 架构
 
@@ -52,7 +52,10 @@ flowchart LR
   Q --> OA[openalex]
   Q --> HN[hn]
   Q --> ST[stack]
-  A & B & C & D & E & F & G & Hh & OA & HN & ST --> R[RRF fusion<br/>profile weights ×<br/>learned multipliers]
+  Q --> AG[ar_github]
+  Q --> AY[ar_youtube]
+  Q --> AB[ar_bilibili]
+  A & B & C & D & E & F & G & Hh & OA & HN & ST & AG & AY & AB --> R[RRF fusion<br/>profile weights ×<br/>learned multipliers]
   R --> J[jina rerank v3.5<br/>fallback v3 → v2]
   J --> O[top N results<br/>+ provenance + health]
   O --> AN[optional cited answer]
@@ -82,9 +85,9 @@ PYTHONPATH=src python3 -m agg_search.search "query"
 
 | 入口 | 说明 |
 |---|---|
-| [docs/catalog.md](docs/catalog.md) | 14 家 Agent × 4 个领域画像的完整入口表 |
+| [docs/catalog.md](docs/catalog.md) | 14 家 Agent × 5 个领域画像的完整入口表 |
 | [catalog.json](catalog.json) | 同一份数据的机器可读版本（给脚本/目录站用） |
-| [docs/portals.md](docs/portals.md) | 56 个 `agent × domain` 门户隔离规格（工具子集/顺序、prompt、依赖与降级） |
+| [docs/portals.md](docs/portals.md) | 70 个 `agent × domain` 门户隔离规格（工具子集/顺序、prompt、依赖与降级） |
 | [portals.json](portals.json) | 机器可读门户注册表（与 `catalog.json` 严格同步） |
 | Cursor / VS Code | 表里是一键深链，直接带上 `AGG_SEARCH_PORTAL` / `AGG_SEARCH_PROFILE` |
 | Claude Code / Codex | 一条 `mcp add` 命令，含 `--env` |
@@ -179,6 +182,7 @@ agg-search-http --host 127.0.0.1 --port 8765 --path /mcp
 agg-search "speculative decoding" --profile academic   # openalex 优先，摘要 500 字，top 15
 agg-search "sqlite wal corrupt" --profile code         # stack 优先，摘要 600 字
 agg-search "release notes" --profile news --top-n 5    # 默认 recency=day
+agg-search "vLLM 推理优化" --profile platform            # GitHub/YouTube/B站 平台源 + web 保底
 agg-search --list-profiles
 
 agg-search-install -c cursor --profile code --write    # 把某个客户端钉在 code 画像上
@@ -242,7 +246,7 @@ python3 -m unittest discover -s tests -v
 | [docs/adapters.md](docs/adapters.md) | 14 家客户端的接入配置 |
 | [docs/http.md](docs/http.md) | HTTP 传输、安全模型、反向代理 |
 | [docs/profiles.md](docs/profiles.md) | 领域画像、每 agent 策略、反馈回路与调参 |
-| [docs/portals.md](docs/portals.md) | 56 个 `agent × domain` 门户规格、工具顺序与降级路径 |
+| [docs/portals.md](docs/portals.md) | 70 个 `agent × domain` 门户规格、工具顺序与降级路径 |
 | [docs/stability.md](docs/stability.md) | 1.0 起的稳定性承诺：哪些接口受 SemVer 保护、弃用流程 |
 | [docs/benchmarks.md](docs/benchmarks.md) | 各项增强与领域调整的对照评测（候选 A–M）、合入与拒绝的依据 |
 | [docs/agent-tests.md](docs/agent-tests.md) | 6 个 CLI 客户端的门户隔离实测与清理记录 |

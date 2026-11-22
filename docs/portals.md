@@ -14,6 +14,7 @@
 | `code` | `agg-search-code` | `search` → `fetch` | `stack` | blend=0.4, snippet=600 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `general` | `agg-search` | `search` → `fetch` | — | balanced | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 | `news` | `agg-search-news` | `search` → `fetch` | — | recency=`day`, snippet=300 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
+| `platform` | `agg-search-platform` | `search` → `fetch` | `ar_github`, `ar_youtube`, `ar_bilibili` | snippet=400 | 缺 key 跳过走无 key 回退；缺 Jina 保留 RRF；缺 LLM 退回无扩展/无答案 |
 
 ## 按 Agent（本地 LLM 假设与回答回退顺序）
 
@@ -34,7 +35,7 @@
 | `windsurf` | json | 否（云端优先） | `deepseek` → `local` | `agg-search-install --portal windsurf.academic --write` |
 | `zed` | json | 是 | `local` → `deepseek` | `agg-search-install --portal zed.academic --write` |
 
-## 全量门户命令索引（56 个 `agent.domain`）
+## 全量门户命令索引（70 个 `agent.domain`）
 
 | Portal | Server 名 | 安装 / 写入命令 |
 |---|---|---|
@@ -42,57 +43,71 @@
 | `antigravity.code` | `agg-search-code` | `agg-search-install --portal antigravity.code --write` |
 | `antigravity.general` | `agg-search` | `agg-search-install --portal antigravity.general --write` |
 | `antigravity.news` | `agg-search-news` | `agg-search-install --portal antigravity.news --write` |
+| `antigravity.platform` | `agg-search-platform` | `agg-search-install --portal antigravity.platform --write` |
 | `claude-code.academic` | `agg-search-academic` | `agg-search-install --portal claude-code.academic` |
 | `claude-code.code` | `agg-search-code` | `agg-search-install --portal claude-code.code` |
 | `claude-code.general` | `agg-search` | `agg-search-install --portal claude-code.general` |
 | `claude-code.news` | `agg-search-news` | `agg-search-install --portal claude-code.news` |
+| `claude-code.platform` | `agg-search-platform` | `agg-search-install --portal claude-code.platform` |
 | `claude-desktop.academic` | `agg-search-academic` | `agg-search-install --portal claude-desktop.academic --write` |
 | `claude-desktop.code` | `agg-search-code` | `agg-search-install --portal claude-desktop.code --write` |
 | `claude-desktop.general` | `agg-search` | `agg-search-install --portal claude-desktop.general --write` |
 | `claude-desktop.news` | `agg-search-news` | `agg-search-install --portal claude-desktop.news --write` |
+| `claude-desktop.platform` | `agg-search-platform` | `agg-search-install --portal claude-desktop.platform --write` |
 | `cline.academic` | `agg-search-academic` | `agg-search-install --portal cline.academic --write` |
 | `cline.code` | `agg-search-code` | `agg-search-install --portal cline.code --write` |
 | `cline.general` | `agg-search` | `agg-search-install --portal cline.general --write` |
 | `cline.news` | `agg-search-news` | `agg-search-install --portal cline.news --write` |
+| `cline.platform` | `agg-search-platform` | `agg-search-install --portal cline.platform --write` |
 | `codex.academic` | `agg-search-academic` | `agg-search-install --portal codex.academic` |
 | `codex.code` | `agg-search-code` | `agg-search-install --portal codex.code` |
 | `codex.general` | `agg-search` | `agg-search-install --portal codex.general` |
 | `codex.news` | `agg-search-news` | `agg-search-install --portal codex.news` |
+| `codex.platform` | `agg-search-platform` | `agg-search-install --portal codex.platform` |
 | `continue.academic` | `agg-search-academic` | `agg-search-install --portal continue.academic` |
 | `continue.code` | `agg-search-code` | `agg-search-install --portal continue.code` |
 | `continue.general` | `agg-search` | `agg-search-install --portal continue.general` |
 | `continue.news` | `agg-search-news` | `agg-search-install --portal continue.news` |
+| `continue.platform` | `agg-search-platform` | `agg-search-install --portal continue.platform` |
 | `cursor.academic` | `agg-search-academic` | `agg-search-install --portal cursor.academic --write` |
 | `cursor.code` | `agg-search-code` | `agg-search-install --portal cursor.code --write` |
 | `cursor.general` | `agg-search` | `agg-search-install --portal cursor.general --write` |
 | `cursor.news` | `agg-search-news` | `agg-search-install --portal cursor.news --write` |
+| `cursor.platform` | `agg-search-platform` | `agg-search-install --portal cursor.platform --write` |
 | `gemini.academic` | `agg-search-academic` | `agg-search-install --portal gemini.academic --write` |
 | `gemini.code` | `agg-search-code` | `agg-search-install --portal gemini.code --write` |
 | `gemini.general` | `agg-search` | `agg-search-install --portal gemini.general --write` |
 | `gemini.news` | `agg-search-news` | `agg-search-install --portal gemini.news --write` |
+| `gemini.platform` | `agg-search-platform` | `agg-search-install --portal gemini.platform --write` |
 | `generic.academic` | `agg-search-academic` | `agg-search-install --portal generic.academic` |
 | `generic.code` | `agg-search-code` | `agg-search-install --portal generic.code` |
 | `generic.general` | `agg-search` | `agg-search-install --portal generic.general` |
 | `generic.news` | `agg-search-news` | `agg-search-install --portal generic.news` |
+| `generic.platform` | `agg-search-platform` | `agg-search-install --portal generic.platform` |
 | `omp.academic` | `agg-search-academic` | `agg-search-install --portal omp.academic --write` |
 | `omp.code` | `agg-search-code` | `agg-search-install --portal omp.code --write` |
 | `omp.general` | `agg-search` | `agg-search-install --portal omp.general --write` |
 | `omp.news` | `agg-search-news` | `agg-search-install --portal omp.news --write` |
+| `omp.platform` | `agg-search-platform` | `agg-search-install --portal omp.platform --write` |
 | `opencode.academic` | `agg-search-academic` | `agg-search-install --portal opencode.academic --write` |
 | `opencode.code` | `agg-search-code` | `agg-search-install --portal opencode.code --write` |
 | `opencode.general` | `agg-search` | `agg-search-install --portal opencode.general --write` |
 | `opencode.news` | `agg-search-news` | `agg-search-install --portal opencode.news --write` |
+| `opencode.platform` | `agg-search-platform` | `agg-search-install --portal opencode.platform --write` |
 | `vscode.academic` | `agg-search-academic` | `agg-search-install --portal vscode.academic --write` |
 | `vscode.code` | `agg-search-code` | `agg-search-install --portal vscode.code --write` |
 | `vscode.general` | `agg-search` | `agg-search-install --portal vscode.general --write` |
 | `vscode.news` | `agg-search-news` | `agg-search-install --portal vscode.news --write` |
+| `vscode.platform` | `agg-search-platform` | `agg-search-install --portal vscode.platform --write` |
 | `windsurf.academic` | `agg-search-academic` | `agg-search-install --portal windsurf.academic --write` |
 | `windsurf.code` | `agg-search-code` | `agg-search-install --portal windsurf.code --write` |
 | `windsurf.general` | `agg-search` | `agg-search-install --portal windsurf.general --write` |
 | `windsurf.news` | `agg-search-news` | `agg-search-install --portal windsurf.news --write` |
+| `windsurf.platform` | `agg-search-platform` | `agg-search-install --portal windsurf.platform --write` |
 | `zed.academic` | `agg-search-academic` | `agg-search-install --portal zed.academic --write` |
 | `zed.code` | `agg-search-code` | `agg-search-install --portal zed.code --write` |
 | `zed.general` | `agg-search` | `agg-search-install --portal zed.general --write` |
 | `zed.news` | `agg-search-news` | `agg-search-install --portal zed.news --write` |
+| `zed.platform` | `agg-search-platform` | `agg-search-install --portal zed.platform --write` |
 
 常用示例：`agg-search-install --portal codex.academic`、`agg-search-install --portal claude-code.code`、`agg-search-install --portal cursor.news --write`。

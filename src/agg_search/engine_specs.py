@@ -70,6 +70,22 @@ ENGINE_SPECS = {
         "env": ("SERPER_API_KEY",), "weight": 1.0, "default": False,
         "keyless": False, "pack": "news",
     },
+    # platform-native recall via the optional Agent-Reach CLI. Keyless, but
+    # requires the external binary; never in the default engine set.
+    # Weights are below 1.0: each list is single-domain and must not
+    # outvote multi-engine web consensus.
+    "ar_github": {
+        "env": (), "weight": 0.8, "default": False,
+        "keyless": True, "pack": "platform",
+    },
+    "ar_youtube": {
+        "env": (), "weight": 0.6, "default": False,
+        "keyless": True, "pack": "platform",
+    },
+    "ar_bilibili": {
+        "env": (), "weight": 0.5, "default": False,
+        "keyless": True, "pack": "platform",
+    },
 }
 
 

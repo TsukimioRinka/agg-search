@@ -305,6 +305,74 @@ DOMAIN_SPECS = {
             ),
         },
     },
+    "platform": {
+        "profile": "platform",
+        "server_name": "agg-search-platform",
+        "tools": ("search", "fetch"),
+        "tool_order": (
+            {
+                "step": 1,
+                "tool": "search",
+                "guidance": (
+                    "Query platform-native sources through Agent-Reach "
+                    "(`ar_github`, `ar_youtube`, `ar_bilibili`) and keep web "
+                    "engines for breadth; results fuse with RRF."
+                ),
+            },
+            {
+                "step": 2,
+                "tool": "fetch",
+                "guidance": (
+                    "Read the winning URL with `fetch`: platform hosts use the "
+                    "Agent-Reach reader first, then the general ladder."
+                ),
+            },
+        ),
+        "required_engines": ("ar_github", "ar_youtube", "ar_bilibili"),
+        "keyless_fallback": ("searxng", "hn"),
+        "prompts": {
+            "expand": (
+                "Generate {count} alternative queries for the topic below, "
+                "one per line, no numbering, keep the original language and "
+                "key entities; vary platform wording (video title, repository "
+                "name, issue phrasing).\n\nQuery: {query}"
+            ),
+            "answer": (
+                "Answer using ONLY the results below. Platform results "
+                "(GitHub, YouTube, Bilibili) are titles and descriptions, not "
+                "verified facts: say what a video or repository claims, and "
+                "cite every source as [n]. Answer in the query's language.\n\n"
+                "Query: {query}\n\nResults:\n{results}"
+            ),
+            "filter_hint": (
+                "Prefer platform-native items (GitHub repositories/issues, "
+                "conference talks, Bilibili explainers) when the query targets "
+                "code, video or Chinese-platform content; do not treat video "
+                "titles as evidence for factual claims."
+            ),
+            "instructions": (
+                "Portal `{portal_id}` (server `{server_name}`, profile "
+                "`{profile}`): platform-native recall through the optional "
+                "Agent-Reach CLI plus web engines. Follow tool order: "
+                "{tool_order_text}. {filter_hint} {fallback_summary} "
+                + UNTRUSTED_CONTENT_NOTICE
+            ),
+        },
+        "tool_descriptions": {
+            "search": (
+                "Search platform-native sources (GitHub, YouTube, Bilibili) "
+                "through Agent-Reach and fuse them with web engines via RRF + "
+                "Jina. Agent-Reach is optional: a missing binary is reported "
+                "as a skipped engine, never a failed search. Follow with "
+                "`fetch` to read a result in full."
+            ),
+            "fetch": (
+                "Read URLs as clean text. GitHub/Bilibili/YouTube/V2EX links "
+                "try the Agent-Reach reader first, then the DeepSeek Fetch API "
+                "and the static -> dynamic -> stealth container ladder."
+            ),
+        },
+    },
 }
 
 

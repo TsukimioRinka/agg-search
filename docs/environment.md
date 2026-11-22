@@ -25,7 +25,7 @@
 | `CRAWL_PROXY` | 抓取容器出网代理（如 `http://127.0.0.1:7897`，需同时加 `--host-net`），`NO_PROXY="*"` 强制直连（优先级最高），其余回落 `HTTPS_PROXY` | 否 |
 | `AGG_SEARCH_CACHE_DIR` | 覆盖缓存根目录（默认 `~/.cache/agg-search`；结果缓存、冷却状态、页面缓存、反馈计数都在这里） | 否 |
 | `AGG_SEARCH_CONFIG_DIR` | 覆盖调优权重目录（默认 `~/.config/agg-search`，`weights.json` 在此） | 否 |
-| `AGG_SEARCH_PROFILE` | 默认领域画像：`general` / `academic` / `code` / `news`（显式 `--profile` 优先） | 否 |
+| `AGG_SEARCH_PROFILE` | 默认领域画像：`general` / `academic` / `code` / `news` / `platform`（显式 `--profile` 优先） | 否 |
 | `AGG_SEARCH_PORTAL` | 门户预设 `<agent>.<domain>`（绑定 server 名、工具子集/顺序、领域 prompt 与降级策略） | 否 |
 | `AGG_SEARCH_NO_LEARN` | `1/true/yes` 关闭反馈读写（等价 `--no-learn`） | 否 |
 | `AGG_SEARCH_ALLOW_PRIVATE` | `1/true/yes` 让抓取允许私网/回环目标（服务端策略；MCP 调用方无法逐次开启；云元数据地址始终拒绝） | 否 |
@@ -36,6 +36,8 @@
 | `AGG_SEARCH_SNIPPET_CHARS` | 输出摘要长度（80–2000） | 否 |
 | `AGG_SEARCH_FAST` | `1/true/yes` 默认开启 fast 召回 | 否 |
 | `AGG_SEARCH_NO_JINA` | `1/true/yes` 默认跳过精排 | 否 |
+| `AGENT_REACH_BIN` | Agent-Reach 可执行文件路径（默认 `agent-reach`；平台源与抓取 rung 都用它） | 否 |
+| `AGENT_REACH_TIMEOUT` | 平台源单次召回超时秒数（默认 8；`crawl-fetch` 的平台 rung 另受 `--timeout` 约束） | 否 |
 
 来源：`~/.config/agent-env` 与 `~/.config/ai-keys.env` 的 `export`/`KEY=` 行（脚本自行解析）+ 进程 env。交互 TUI 自然继承；
 非交互 `opencode run`（脚本/cron）丢 env 时需显式注入。DeepSeek Search/Fetch 按成功请求计费（¥5/千次，QPS 各 5），

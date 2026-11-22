@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] - 2026-11-22
+
+### Added
+
+- **Platform-native recall and reads** through the optional
+  [Agent-Reach](https://github.com/Panniantong/Agent-Reach) CLI. New engines
+  `ar_github`, `ar_youtube`, `ar_bilibili`; profile `platform`; portal
+  `agg-search-platform`. A missing binary is a skip, and platform rate
+  limits/timeouts/bot walls reuse the existing cooldown classes. `crawl-fetch`
+  gains an auto-mode platform rung before DeepSeek for GitHub, Bilibili,
+  YouTube and V2EX URLs (`--no-reach` disables it). Configure with
+  `AGENT_REACH_BIN` and `AGENT_REACH_TIMEOUT`.
+
 ## [1.1.0] - 2026-11-21
 
 MCP 2026-07-28 support. The server is now dual-era: modern clients talk to it

@@ -50,6 +50,19 @@ PROFILES = {
         ),
         "snippet_chars": 600,
     },
+    "platform": {
+        "description": "platform-native recall: GitHub, YouTube and Bilibili "
+                       "through Agent-Reach, plus web engines for breadth",
+        # Agent-Reach engines are keyless but need the external binary; a
+        # missing binary is a skip, so web engines still carry the search.
+        "engines": ["ar_github", "ar_youtube", "ar_bilibili",
+                    "brave", "searxng"],
+        "weights": {"ar_github": 0.8, "ar_youtube": 0.6, "ar_bilibili": 0.5},
+        # fast mode must not return on web engines alone: at least one
+        # platform source has to answer (or every platform task finishes).
+        "primary": ["ar_github", "ar_youtube", "ar_bilibili"],
+        "snippet_chars": 400,
+    },
     "news": {
         "description": "recent events: freshness-first engines with a one-day "
                        "default window",
